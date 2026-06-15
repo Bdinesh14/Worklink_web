@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+Frontend/Mobile/node_modules/
+Frontend/Web/node_modules/
+
+# Expo
+.expo/
+Frontend/Mobile/.expo/
+Frontend/Mobile/dist/
+Frontend/Mobile/web-build/
+Frontend/Mobile/expo-env.d.ts
+
+# Native builds
+Frontend/Mobile/ios/
+Frontend/Mobile/android/
+Frontend/Mobile/.kotlin/
+Frontend/Mobile/*.orig.*
+Frontend/Mobile/*.jks
+Frontend/Mobile/*.p8
+Frontend/Mobile/*.p12
+Frontend/Mobile/*.key
+Frontend/Mobile/*.mobileprovision
+
+# Metro
+Frontend/Mobile/.metro-health-check*
+
+# Web build output
+Frontend/Web/dist/
+Frontend/Web/dist-ssr/
+
+# Debug and Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+Frontend/Web/logs
+
+# Local env files
+.env*.local
+Frontend/Mobile/.env*.local
+Frontend/Web/.env*.local
+
+# Typescript
+*.tsbuildinfo
+Frontend/Mobile/*.tsbuildinfo
+Frontend/Web/*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE configurations
+.claude/
+
