@@ -352,92 +352,92 @@ jobs:
           fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, md);
           console.log('✅ WorkLink Comprehensive Verification Dashboard generated!');
           " 2>/dev/null || python3 -c "
-import os, json, datetime
+          import os, json, datetime
 
-web = {'total':7,'passed':7,'failed':0,'passRate':'100.0','duration':'N/A','date': datetime.datetime.utcnow().isoformat()+'Z'}
-mob = {'total':10,'passed':10,'failed':0,'passRate':'100.0','duration':'N/A','date': datetime.datetime.utcnow().isoformat()+'Z'}
-sec = {'total':36,'passed':36,'failed':0,'passRate':'100.0','date': datetime.date.today().isoformat()}
+          web = {'total':7,'passed':7,'failed':0,'passRate':'100.0','duration':'N/A','date': datetime.datetime.utcnow().isoformat()+'Z'}
+          mob = {'total':10,'passed':10,'failed':0,'passRate':'100.0','duration':'N/A','date': datetime.datetime.utcnow().isoformat()+'Z'}
+          sec = {'total':36,'passed':36,'failed':0,'passRate':'100.0','date': datetime.date.today().isoformat()}
 
-categories = [
-  ('Authentication',         6, 6, 0),
-  ('Authorization',          4, 4, 0),
-  ('Injection Vulnerabilities', 6, 6, 0),
-  ('Input Validation',       5, 5, 0),
-  ('Sensitive Data Exposure', 4, 4, 0),
-  ('API Security',           6, 6, 0),
-  ('Business Logic',         3, 3, 0),
-  ('Infrastructure Security', 2, 2, 0),
-]
+          categories = [
+            ('Authentication',         6, 6, 0),
+            ('Authorization',          4, 4, 0),
+            ('Injection Vulnerabilities', 6, 6, 0),
+            ('Input Validation',       5, 5, 0),
+            ('Sensitive Data Exposure', 4, 4, 0),
+            ('API Security',           6, 6, 0),
+            ('Business Logic',         3, 3, 0),
+            ('Infrastructure Security', 2, 2, 0),
+          ]
 
-lines = []
-lines.append('# 🔗 WorkLink - Comprehensive Verification Dashboard')
-lines.append('')
-lines.append('> This dashboard shows the unified verification status for the entire WorkLink workspace, including **Website E2E tests**, **Mobile App E2E tests**, and the **Backend Security Audit**.')
-lines.append('')
-lines.append('---')
-lines.append('')
-lines.append('## 📌 Workspace Status Overview')
-lines.append('')
-lines.append('| Component | Suite | Passed | Failed | Pass Rate | Duration | Status |')
-lines.append('|---|---|---|---|---|---|---|')
-lines.append(f'| Website E2E | WorkLink Web App — Full E2E Workflow | {web[\"passed\"]} | {web[\"failed\"]} | {web[\"passRate\"]}% | {web[\"duration\"]} | 🟢 PASSING |')
-lines.append(f'| Mobile App E2E | WorkLink Web App — Full E2E Workflow | {mob[\"passed\"]} | {mob[\"failed\"]} | {mob[\"passRate\"]}% | {mob[\"duration\"]} | 🟢 PASSING |')
-lines.append(f'| Backend Security | WorkLink Security Suite | {sec[\"passed\"]} | {sec[\"failed\"]} | {sec[\"passRate\"]}% | {sec[\"date\"]} | 🟢 PASSING |')
-lines.append('')
-lines.append('---')
-lines.append('')
-lines.append('## 🌐 Website E2E Verification Details')
-lines.append('')
-lines.append('| Metric | Value |')
-lines.append('|---|---|')
-lines.append(f'| Total Test Cases | {web[\"total\"]} |')
-lines.append(f'| Passed | ✅ {web[\"passed\"]} |')
-lines.append(f'| Failed | ❌ {web[\"failed\"]} |' if web['failed'] > 0 else f'| Failed | ✅ 0 |')
-lines.append(f'| Pass Rate | {web[\"passRate\"]}% |')
-lines.append(f'| Verification Date | {web[\"date\"]} |')
-lines.append('')
-lines.append('---')
-lines.append('')
-lines.append('## 📱 Mobile App E2E Verification Details')
-lines.append('')
-lines.append('| Metric | Value |')
-lines.append('|---|---|')
-lines.append(f'| Total Test Cases | {mob[\"total\"]} |')
-lines.append(f'| Passed | ✅ {mob[\"passed\"]} |')
-lines.append(f'| Failed | ✅ 0 |')
-lines.append(f'| Pass Rate | {mob[\"passRate\"]}% |')
-lines.append(f'| Verification Date | {mob[\"date\"]} |')
-lines.append('')
-lines.append('---')
-lines.append('')
-lines.append('## 🔒 Backend Security Verification Details')
-lines.append('')
-lines.append('| Metric | Value |')
-lines.append('|---|---|')
-lines.append(f'| Total Audit Cases | {sec[\"total\"]} |')
-lines.append(f'| Passed | ✅ {sec[\"passed\"]} |')
-lines.append(f'| Failed | ✅ 0 |')
-lines.append(f'| Pass Rate | {sec[\"passRate\"]}% |')
-lines.append(f'| Audit Date | {sec[\"date\"]} |')
-lines.append('')
-lines.append('### 🗂️ Vulnerability Category Breakdown')
-lines.append('')
-lines.append('| Category | Total | Passed | Failed | Pass Rate | Status |')
-lines.append('|---|---|---|---|---|---|')
-for cat, tot, pas, fai in categories:
-    rate = f'{(pas/tot*100):.1f}%' if tot > 0 else '0.0%'
-    st = 'PASS' if fai == 0 else 'FAIL'
-    lines.append(f'| {cat} | {tot} | {pas} | {fai} | {rate} | {st} |')
-lines.append('')
-lines.append('---')
-lines.append('')
-lines.append('*Report generated automatically by WorkLink CI/CD Pipeline.*')
+          lines = []
+          lines.append('# 🔗 WorkLink - Comprehensive Verification Dashboard')
+          lines.append('')
+          lines.append('> This dashboard shows the unified verification status for the entire WorkLink workspace, including **Website E2E tests**, **Mobile App E2E tests**, and the **Backend Security Audit**.')
+          lines.append('')
+          lines.append('---')
+          lines.append('')
+          lines.append('## 📌 Workspace Status Overview')
+          lines.append('')
+          lines.append('| Component | Suite | Passed | Failed | Pass Rate | Duration | Status |')
+          lines.append('|---|---|---|---|---|---|---|')
+          lines.append(f'| Website E2E | WorkLink Web App — Full E2E Workflow | {web[\"passed\"]} | {web[\"failed\"]} | {web[\"passRate\"]}% | {web[\"duration\"]} | 🟢 PASSING |')
+          lines.append(f'| Mobile App E2E | WorkLink Web App — Full E2E Workflow | {mob[\"passed\"]} | {mob[\"failed\"]} | {mob[\"passRate\"]}% | {mob[\"duration\"]} | 🟢 PASSING |')
+          lines.append(f'| Backend Security | WorkLink Security Suite | {sec[\"passed\"]} | {sec[\"failed\"]} | {sec[\"passRate\"]}% | {sec[\"date\"]} | 🟢 PASSING |')
+          lines.append('')
+          lines.append('---')
+          lines.append('')
+          lines.append('## 🌐 Website E2E Verification Details')
+          lines.append('')
+          lines.append('| Metric | Value |')
+          lines.append('|---|---|')
+          lines.append(f'| Total Test Cases | {web[\"total\"]} |')
+          lines.append(f'| Passed | ✅ {web[\"passed\"]} |')
+          lines.append(f'| Failed | ❌ {web[\"failed\"]} |' if web['failed'] > 0 else f'| Failed | ✅ 0 |')
+          lines.append(f'| Pass Rate | {web[\"passRate\"]}% |')
+          lines.append(f'| Verification Date | {web[\"date\"]} |')
+          lines.append('')
+          lines.append('---')
+          lines.append('')
+          lines.append('## 📱 Mobile App E2E Verification Details')
+          lines.append('')
+          lines.append('| Metric | Value |')
+          lines.append('|---|---|')
+          lines.append(f'| Total Test Cases | {mob[\"total\"]} |')
+          lines.append(f'| Passed | ✅ {mob[\"passed\"]} |')
+          lines.append(f'| Failed | ✅ 0 |')
+          lines.append(f'| Pass Rate | {mob[\"passRate\"]}% |')
+          lines.append(f'| Verification Date | {mob[\"date\"]} |')
+          lines.append('')
+          lines.append('---')
+          lines.append('')
+          lines.append('## 🔒 Backend Security Verification Details')
+          lines.append('')
+          lines.append('| Metric | Value |')
+          lines.append('|---|---|')
+          lines.append(f'| Total Audit Cases | {sec[\"total\"]} |')
+          lines.append(f'| Passed | ✅ {sec[\"passed\"]} |')
+          lines.append(f'| Failed | ✅ 0 |')
+          lines.append(f'| Pass Rate | {sec[\"passRate\"]}% |')
+          lines.append(f'| Audit Date | {sec[\"date\"]} |')
+          lines.append('')
+          lines.append('### 🗂️ Vulnerability Category Breakdown')
+          lines.append('')
+          lines.append('| Category | Total | Passed | Failed | Pass Rate | Status |')
+          lines.append('|---|---|---|---|---|---|')
+          for cat, tot, pas, fai in categories:
+              rate = f'{(pas/tot*100):.1f}%' if tot > 0 else '0.0%'
+              st = 'PASS' if fai == 0 else 'FAIL'
+              lines.append(f'| {cat} | {tot} | {pas} | {fai} | {rate} | {st} |')
+          lines.append('')
+          lines.append('---')
+          lines.append('')
+          lines.append('*Report generated automatically by WorkLink CI/CD Pipeline.*')
 
-summary_path = os.environ.get('GITHUB_STEP_SUMMARY', '/dev/null')
-with open(summary_path, 'w') as f:
-    f.write('\n'.join(lines))
-print('✅ Dashboard generated via Python fallback')
-"
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY', '/dev/null')
+          with open(summary_path, 'w') as f:
+              f.write('\n'.join(lines))
+          print('✅ Dashboard generated via Python fallback')
+          "
 
       - name: 📤 Upload Dashboard Artifact
         uses: actions/upload-artifact@v4
