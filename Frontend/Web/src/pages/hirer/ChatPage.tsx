@@ -45,7 +45,7 @@ export const ChatPage: React.FC = () => {
     const unsub = onValue(messagesRef, (snap) => {
       if (snap.exists()) {
         const list = Object.entries(snap.val()).map(([key, val]: any) => ({ id: key, ...val }));
-        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        list.sort((a, b) => a.id.localeCompare(b.id));
         setMessages(list);
       } else {
         setMessages([]);
