@@ -143,7 +143,9 @@ export const WorkerApplicationsScreen = ({ navigation }: { navigation: any }) =>
           onPress: async () => {
             setActingId(req.id);
             try {
+              const chatId = [req.hirerUid, req.workerUid].sort().join('_');
               const chatData = {
+                id: chatId,
                 hirerUid: req.hirerUid,
                 hirerName: req.hirerName,
                 workerUid: req.workerUid,
@@ -153,7 +155,7 @@ export const WorkerApplicationsScreen = ({ navigation }: { navigation: any }) =>
                 createdAt: new Date().toISOString(),
               };
 
-              const newMsgRef = push(ref(database, `messages/${req.id}`));
+              const newMsgRef = push(ref(database, `messages/${chatId}`));
               const messageId = newMsgRef.key;
               const greetingMessage = {
                 senderUid: req.workerUid,
@@ -164,8 +166,8 @@ export const WorkerApplicationsScreen = ({ navigation }: { navigation: any }) =>
 
               // Write to individual paths to avoid root "/" write check
               await update(ref(database, `requests/${req.id}`), { status: 'accepted' });
-              await set(ref(database, `chats/${req.id}`), chatData);
-              await set(ref(database, `messages/${req.id}/${messageId}`), greetingMessage);
+              await set(ref(database, `chats/${chatId}`), chatData);
+              await set(ref(database, `messages/${chatId}/${messageId}`), greetingMessage);
 
               setReceived((prev) =>
                 prev.map((r) => (r.id === req.id ? { ...r, status: 'accepted' } : r))
@@ -285,7 +287,7 @@ export const WorkerApplicationsScreen = ({ navigation }: { navigation: any }) =>
             <TouchableOpacity
               style={[styles.messageBtn, !item.hirerPhoneNumber && { flex: 1 }]}
               onPress={() => navigation.navigate('ChatScreen', {
-                chatId: item.id,
+                chatId: [item.hirerUid, item.workerUid].sort().join('_'),
                 otherName: item.hirerName,
                 otherUid: item.hirerUid,
               })}
@@ -352,7 +354,7 @@ export const WorkerApplicationsScreen = ({ navigation }: { navigation: any }) =>
             <TouchableOpacity
               style={[styles.messageBtn, !item.hirerPhoneNumber && { flex: 1 }]}
               onPress={() => navigation.navigate('ChatScreen', {
-                chatId: item.id,
+                chatId: [item.hirerUid, item.workerUid].sort().join('_'),
                 otherName: item.hirerName,
                 otherUid: item.hirerUid,
               })}
