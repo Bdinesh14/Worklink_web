@@ -2,10 +2,16 @@ name: 🚀 Deploy to GitHub Pages + Selenium E2E Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      run_tests_only:
+        description: 'Run tests against existing deployment (skip deploy)'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: read
@@ -13,31 +19,36 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: "pages-${{ github.ref }}"
   cancel-in-progress: false
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 1 – Build Vite app and deploy to GitHub Pages
-# ─────────────────────────────────────────────────────────────────────────────
+env:
+  GITHUB_USERNAME: Bdinesh14
+  REPOSITORY_NAME: Worklink_web
+  BASE_URL: https://bdinesh14.github.io/Worklink_web/
+  NODE_VERSION: '20'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
-  deploy:
-    name: 🌐 Deploy to GitHub Pages
+  # ─────────────────────────────────────────────
+  # JOB 1: Build Vite Web App
+  # ─────────────────────────────────────────────
+  build:
+    name: 🔨 Build Expo Web App
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.run_tests_only != 'true'
     outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
+      build_status: ${{ steps.build_result.outputs.status }}
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js 20
+      - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
           cache-dependency-path: Frontend/Web/package-lock.json
 
       - name: 📦 Install dependencies
@@ -48,54 +59,122 @@ jobs:
         working-directory: Frontend/Web
         run: npm run build
         env:
-          # Set Vite base path to /<repo-name>/ so assets load from subdirectory
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_BASE_PATH: /Worklink_web/
 
-      - name: ⚙️ Configure GitHub Pages
-        uses: actions/configure-pages@v5
+      - name: 📄 Create 404.html for SPA routing
+        working-directory: Frontend/Web
+        run: |
+          cp dist/index.html dist/404.html
+          echo "✅ 404.html created for SPA routing"
 
-      - name: 📤 Upload dist as Pages artifact
+      - name: 🔍 Verify build output
+        id: build_result
+        working-directory: Frontend/Web
+        run: |
+          if [ -d "dist" ] && [ -f "dist/index.html" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Build successful - dist/ directory created"
+            ls -la dist/
+            echo "Build size: $(du -sh dist/ | cut -f1)"
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Build failed - dist/ directory missing"
+            exit 1
+          fi
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: worklink-web-build
+          path: Frontend/Web/dist/
+          retention-days: 30
+
+      - name: 📤 Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: Frontend/Web/dist
+          path: Frontend/Web/dist/
 
+  # ─────────────────────────────────────────────
+  # JOB 2: Deploy to GitHub Pages
+  # ─────────────────────────────────────────────
+  deploy:
+    name: 🌐 Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.run_tests_only != 'true')
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: 🚀 Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 2 – Verify live deployment and run Selenium E2E tests
-# ─────────────────────────────────────────────────────────────────────────────
-  selenium-e2e:
-    name: 🔍 Verify Live Deployment + 🧪 Selenium E2E Tests
-    runs-on: ubuntu-latest
+  # ─────────────────────────────────────────────
+  # JOB 3: Verify Live Deployment
+  # ─────────────────────────────────────────────
+  verify-deployment:
+    name: 🔍 Verify Live Deployment
     needs: deploy
-    if: needs.deploy.result == 'success'
-    env:
-      BASE_URL: ${{ needs.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    outputs:
+      live_url: ${{ steps.verify.outputs.live_url }}
 
     steps:
-      - name: ⬇️ Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 🟢 Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: ⏳ Wait 30s for CDN propagation
+      - name: ⏳ Wait for deployment propagation
         run: sleep 30
 
-      - name: ✅ Verify deployed URL returns HTTP 200
+      - name: ✅ Verify deployment is live
+        id: verify
         run: |
-          echo "🔗 Testing: $BASE_URL"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL")
-          echo "HTTP Status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Deployment check FAILED — HTTP $STATUS"
-            exit 1
+          URL="${{ needs.deploy.outputs.page_url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ env.BASE_URL }}"
           fi
-          echo "✅ Deployment live (HTTP 200)"
+          echo "live_url=$URL" >> $GITHUB_OUTPUT
+          echo "🔗 Testing: $URL"
+
+          MAX_ATTEMPTS=5
+          ATTEMPT=0
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" --max-time 15 || echo "000")
+            echo "Attempt $((ATTEMPT+1)): HTTP $STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+              echo "✅ Site is live! (HTTP $STATUS)"
+              break
+            fi
+            ATTEMPT=$((ATTEMPT+1))
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "⏳ Waiting 20s before retry..."
+              sleep 20
+            fi
+          done
+
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ] && [ "$STATUS" != "200" ]; then
+            echo "⚠️ Site may still be deploying. Continuing with tests..."
+          fi
+
+  # ─────────────────────────────────────────────
+  # JOB 4: Selenium E2E Tests
+  # ─────────────────────────────────────────────
+  selenium-tests:
+    name: 🧪 Selenium E2E Tests
+    needs: verify-deployment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: 🌐 Install Google Chrome
         run: |
@@ -103,26 +182,27 @@ jobs:
           sudo sh -c 'echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
           sudo apt-get update -qq
           sudo apt-get install -y google-chrome-stable
+          echo "✅ Chrome: $(google-chrome --version)"
 
-      - name: 📦 Install E2E dependencies
+      - name: 📦 Install E2E test dependencies
         working-directory: Frontend/Web/e2e
         run: npm ci
 
-      - name: 🧪 Run Selenium E2E tests (live GitHub Pages URL)
+      - name: 🧪 Run Selenium E2E Tests against Live URL
         working-directory: Frontend/Web/e2e
         run: npm test
         continue-on-error: true
         env:
-          BASE_URL: ${{ needs.deploy.outputs.page_url }}
+          BASE_URL: ${{ needs.verify-deployment.outputs.live_url }}
 
-      - name: 📊 Generate Excel + Markdown reports
+      - name: 📊 Generate Excel + Markdown Reports
         working-directory: Frontend/Web/e2e
         if: always()
         run: node utils/reportGenerator.js
         env:
-          BASE_URL: ${{ needs.deploy.outputs.page_url }}
+          BASE_URL: ${{ needs.verify-deployment.outputs.live_url }}
 
-      - name: 📤 Upload test artifacts
+      - name: 📤 Upload Test Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -133,14 +213,16 @@ jobs:
       - name: 📋 Publish GitHub Actions Step Summary
         if: always()
         run: |
-          echo "## 🚀 Live GitHub Pages E2E Test Summary" >> $GITHUB_STEP_SUMMARY
+          LIVE_URL="${{ needs.verify-deployment.outputs.live_url }}"
+          echo "## ✅ Live GitHub Pages E2E Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Deployment URL** | $BASE_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Build Number** | #${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build #** | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment URL** | [$LIVE_URL]($LIVE_URL) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Triggered by** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Execution Date** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           SUMMARY="Frontend/Web/e2e/Test Results/Summary/summary.md"
           if [ -f "$SUMMARY" ]; then

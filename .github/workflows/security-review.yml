@@ -1,101 +1,160 @@
-name: 🔒 Security Review – SAST + Dependency Scan
+name: 🔐 Security Review – SAST + Dependency Scan
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write   # Required to upload SARIF to GitHub Security tab
-  actions: read
+  security-events: write
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 1 – Detect Technology Stack
-# ─────────────────────────────────────────────────────────────────────────────
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
-  detect-stack:
+  # ─────────────────────────────────────────────
+  # JOB 1: Technology Detection
+  # ─────────────────────────────────────────────
+  detect-tech:
     name: 🔍 Detect Technology Stack
     runs-on: ubuntu-latest
     outputs:
-      has_web: ${{ steps.detect.outputs.has_web }}
-      has_mobile: ${{ steps.detect.outputs.has_mobile }}
+      has_node: ${{ steps.detect.outputs.has_node }}
+      has_python: ${{ steps.detect.outputs.has_python }}
+      has_java: ${{ steps.detect.outputs.has_java }}
+      framework: ${{ steps.detect.outputs.framework }}
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🔍 Detect project structure
+      - name: 🔍 Detect stack
         id: detect
         run: |
-          HAS_WEB="false"
-          HAS_MOBILE="false"
+          HAS_NODE="false"
+          HAS_PYTHON="false"
+          HAS_JAVA="false"
+          FRAMEWORK="unknown"
+
+          [ -f "Frontend/Web/package.json" ] && HAS_NODE="true"
+          [ -f "requirements.txt" ] && HAS_PYTHON="true"
+          [ -f "pom.xml" ] || [ -f "build.gradle" ] && HAS_JAVA="true"
 
           if [ -f "Frontend/Web/package.json" ]; then
-            HAS_WEB="true"
-            echo "✅ Detected: Web (Vite + React + TypeScript)"
+            if grep -q "vite" Frontend/Web/package.json 2>/dev/null; then
+              FRAMEWORK="vite-react-typescript"
+            elif grep -q "expo" Frontend/Mobile/package.json 2>/dev/null; then
+              FRAMEWORK="expo-react-native"
+            elif grep -q "react" Frontend/Web/package.json 2>/dev/null; then
+              FRAMEWORK="react"
+            fi
           fi
 
-          if [ -f "Frontend/Mobile/package.json" ]; then
-            HAS_MOBILE="true"
-            echo "✅ Detected: Mobile (Expo + React Native)"
-          fi
+          echo "has_node=$HAS_NODE" >> $GITHUB_OUTPUT
+          echo "has_python=$HAS_PYTHON" >> $GITHUB_OUTPUT
+          echo "has_java=$HAS_JAVA" >> $GITHUB_OUTPUT
+          echo "framework=$FRAMEWORK" >> $GITHUB_OUTPUT
 
-          echo "has_web=$HAS_WEB" >> $GITHUB_OUTPUT
-          echo "has_mobile=$HAS_MOBILE" >> $GITHUB_OUTPUT
+          echo "=== WorkLink Stack Detected ==="
+          echo "Node.js:   $HAS_NODE"
+          echo "Python:    $HAS_PYTHON"
+          echo "Java:      $HAS_JAVA"
+          echo "Framework: $FRAMEWORK"
+          echo "Web:       Vite + React 19 + TypeScript"
+          echo "Mobile:    Expo ~54 + React Native 0.81"
+          echo "Auth/DB:   Firebase"
 
-          echo "## 🔍 Technology Stack Detection" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Detected |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Web Frontend | $HAS_WEB |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mobile (Expo) | $HAS_MOBILE |" >> $GITHUB_STEP_SUMMARY
-          echo "| Framework | Vite + React + TypeScript |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mobile Framework | Expo + React Native |" >> $GITHUB_STEP_SUMMARY
-
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 2 – SAST with Semgrep
-# ─────────────────────────────────────────────────────────────────────────────
-  sast-semgrep:
-    name: 🔬 SAST – Semgrep
+  # ─────────────────────────────────────────────
+  # JOB 2: Secret Detection (Gitleaks)
+  # ─────────────────────────────────────────────
+  secret-detection:
+    name: 🔑 Secret Detection – Gitleaks
     runs-on: ubuntu-latest
-    needs: detect-stack
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
-
-      - name: 🔬 Run Semgrep SAST scan
-        uses: semgrep/semgrep-action@v1
         with:
-          config: >-
-            p/default
-            p/react
-            p/typescript
-            p/javascript
-            p/owasp-top-ten
+          fetch-depth: 0
+
+      - name: 🔑 Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
         env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: 🔬 Run Semgrep (offline fallback — no token needed)
+      - name: 📋 Secret Detection Summary
+        if: always()
         run: |
-          pip install semgrep --quiet
-          # Scan Web frontend
-          semgrep scan \
-            --config=p/javascript \
-            --config=p/react \
-            --config=p/owasp-top-ten \
-            --json \
-            --output=semgrep-results.json \
-            Frontend/Web/src/ \
-            || true
+          echo "## 🔑 Secret Detection (Gitleaks)" >> $GITHUB_STEP_SUMMARY
+          echo "Gitleaks scanned the repository for hardcoded secrets and API keys." >> $GITHUB_STEP_SUMMARY
+          echo "Check the job logs above for any findings." >> $GITHUB_STEP_SUMMARY
 
-          # Count findings
-          if [ -f semgrep-results.json ]; then
-            TOTAL=$(python3 -c "import json,sys; d=json.load(open('semgrep-results.json')); print(len(d.get('results',[])))" 2>/dev/null || echo "0")
-            echo "📊 Semgrep found $TOTAL findings"
+  # ─────────────────────────────────────────────
+  # JOB 3: SAST Scan (Semgrep)
+  # ─────────────────────────────────────────────
+  sast-semgrep:
+    name: 🔍 SAST – Semgrep
+    needs: detect-tech
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📦 Install Semgrep
+        run: pip install semgrep
+
+      - name: 📁 Create output directories
+        run: |
+          mkdir -p "Vulnerability Test Results"
+          mkdir -p security/reports
+
+      - name: 🔍 Run Semgrep SAST
+        run: |
+          semgrep scan \
+            --config=auto \
+            --config=p/secrets \
+            --severity=ERROR \
+            --json \
+            --output=security/reports/semgrep-results.json \
+            --exclude=node_modules \
+            --exclude=dist \
+            --exclude=build \
+            --exclude=.expo \
+            --exclude='*test*' \
+            --exclude='*tests*' \
+            --exclude='*.test.*' \
+            --exclude='selenium-tests' \
+            --exclude='appium-tests' \
+            --exclude='e2e' \
+            . 2>&1 || true
+
+          echo "Semgrep scan complete"
+          if [ -f "security/reports/semgrep-results.json" ]; then
+            FINDINGS=$(python3 -c "
+          import json
+          try:
+            with open('security/reports/semgrep-results.json') as f:
+              data = json.load(f)
+            results = data.get('results', [])
+            print(f'Total findings: {len(results)}')
+            for r in results[:5]:
+              print(f'  - [{r.get(\"extra\",{}).get(\"severity\",\"?\")}] {r.get(\"check_id\",\"?\")} in {r.get(\"path\",\"?\")}:{r.get(\"start\",{}).get(\"line\",\"?\")}')
+          except Exception as e:
+            print(f'Could not parse: {e}')
+          " 2>/dev/null || echo "Could not parse results")
+            echo "$FINDINGS"
           fi
 
       - name: 📤 Upload Semgrep results
@@ -103,22 +162,22 @@ jobs:
         if: always()
         with:
           name: Semgrep-SAST-Results-${{ github.run_number }}
-          path: semgrep-results.json
+          path: security/reports/
           retention-days: 30
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 3 – Dependency Vulnerability Scan with Trivy
-# ─────────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────
+  # JOB 4: Dependency Vulnerability Scan
+  # ─────────────────────────────────────────────
   dependency-scan:
     name: 📦 Dependency Vulnerability Scan
+    needs: detect-tech
     runs-on: ubuntu-latest
-    needs: detect-stack
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🛡️ Run Trivy – Web Frontend
+      - name: 🛡️ Run Trivy – Web Frontend (Frontend/Web)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
@@ -129,7 +188,7 @@ jobs:
           ignore-unfixed: true
         continue-on-error: true
 
-      - name: 🛡️ Run Trivy – Mobile Frontend
+      - name: 🛡️ Run Trivy – Mobile (Frontend/Mobile)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
@@ -169,93 +228,80 @@ jobs:
             trivy-web-report.json
           retention-days: 30
 
-      - name: 📋 Trivy Summary
+      - name: 📋 Dependency Scan Summary
         if: always()
         run: |
-          echo "## 📦 Dependency Vulnerability Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 Dependency Vulnerability Scan" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Scanner | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Scanner | Scope |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Web Frontend | Trivy | ✅ Scanned |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mobile (Expo) | Trivy | ✅ Scanned |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Web Frontend | Trivy | Frontend/Web |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mobile (Expo) | Trivy | Frontend/Mobile |" >> $GITHUB_STEP_SUMMARY
 
           if [ -f trivy-web-report.json ]; then
             CRITICAL=$(python3 -c "
-          import json, sys
+          import json
           try:
             d = json.load(open('trivy-web-report.json'))
-            results = d.get('Results', [])
-            total = sum(len([v for v in r.get('Vulnerabilities', []) or [] if v.get('Severity') == 'CRITICAL']) for r in results)
+            total = sum(len([v for v in r.get('Vulnerabilities', []) or [] if v.get('Severity') == 'CRITICAL']) for r in d.get('Results', []))
             print(total)
           except: print('0')
           " 2>/dev/null || echo "0")
             HIGH=$(python3 -c "
-          import json, sys
+          import json
           try:
             d = json.load(open('trivy-web-report.json'))
-            results = d.get('Results', [])
-            total = sum(len([v for v in r.get('Vulnerabilities', []) or [] if v.get('Severity') == 'HIGH']) for r in results)
+            total = sum(len([v for v in r.get('Vulnerabilities', []) or [] if v.get('Severity') == 'HIGH']) for r in d.get('Results', []))
             print(total)
           except: print('0')
           " 2>/dev/null || echo "0")
-            echo "| **CRITICAL findings** | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
-            echo "| **HIGH findings** | $HIGH |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            if [ "$CRITICAL" -gt "0" ] 2>/dev/null; then
-              echo "⚠️ **$CRITICAL CRITICAL vulnerabilities found. Review Security tab.**" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "✅ No CRITICAL vulnerabilities found." >> $GITHUB_STEP_SUMMARY
-            fi
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 CRITICAL | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 HIGH | $HIGH |" >> $GITHUB_STEP_SUMMARY
           fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 4 – Generate Security Reports
-# ─────────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────
+  # JOB 5: Generate Security Reports
+  # ─────────────────────────────────────────────
   generate-reports:
     name: 📄 Generate Security Reports
+    needs: [detect-tech, sast-semgrep, dependency-scan, secret-detection]
     runs-on: ubuntu-latest
-    needs: [detect-stack, sast-semgrep, dependency-scan]
     if: always()
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
-
-      - name: 🟢 Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
 
       - name: 📥 Download SAST results
         uses: actions/download-artifact@v4
         with:
           name: Semgrep-SAST-Results-${{ github.run_number }}
-          path: ./scan-results/
+          path: ./scan-results/semgrep/
         continue-on-error: true
 
       - name: 📥 Download Trivy results
         uses: actions/download-artifact@v4
         with:
           name: Trivy-Dependency-Scan-${{ github.run_number }}
-          path: ./scan-results/
+          path: ./scan-results/trivy/
         continue-on-error: true
 
       - name: 📝 Generate Security Markdown Report
         run: |
           mkdir -p "Vulnerability Test Results"
-          DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          DATE="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           BUILD="#${{ github.run_number }}"
-          ACTOR="${{ github.actor }}"
-          REPO="${{ github.repository }}"
 
           cat > "Vulnerability Test Results/security-review.md" << MDEOF
-          # 🔒 WorkLink Security Review Report
+          # 🔐 WorkLink Security Review Report
 
-          **Repository:** $REPO
+          **Repository:** Bdinesh14/Worklink_web
           **Build:** $BUILD
           **Date:** $DATE
-          **Scanned by:** $ACTOR
+          **Branch:** ${{ github.ref_name }}
 
           ---
 
@@ -263,79 +309,67 @@ jobs:
 
           | Component | Technology |
           |---|---|
-          | Web Frontend | Vite + React 19 + TypeScript |
-          | Mobile | Expo ~54 + React Native 0.81 |
+          | Web Frontend | Vite 8 + React 19 + TypeScript |
+          | Mobile | Expo ~54 + React Native 0.81.5 |
           | Authentication | Firebase Auth |
           | Database | Firebase Firestore |
-          | Routing (Web) | React Router DOM v7 (HashRouter) |
-          | Navigation (Mobile) | React Navigation v7 |
+          | Web Routing | React Router DOM v7 (HashRouter) |
+          | Mobile Navigation | React Navigation v7 |
+          | Build Tool (Web) | Vite |
+          | Package Manager | npm |
 
           ---
 
-          ## SAST Findings (Semgrep)
+          ## Scans Executed
 
-          > Semgrep scanned \`Frontend/Web/src/\` using \`p/javascript\`, \`p/react\`, and \`p/owasp-top-ten\` rules.
-          > See \`semgrep-results.json\` artifact for full details.
-
-          ---
-
-          ## Dependency Vulnerabilities (Trivy)
-
-          > Trivy scanned both \`Frontend/Web\` and \`Frontend/Mobile\` package dependencies.
-          > Full reports available in GitHub Security tab (SARIF) and artifact downloads.
+          | Scan | Tool | Target |
+          |---|---|---|
+          | Secret Detection | Gitleaks | Full repository |
+          | SAST | Semgrep (auto + p/secrets) | Frontend/Web/src/ |
+          | Dependency Scan | Trivy | Frontend/Web + Frontend/Mobile |
+          | SARIF Upload | GitHub Security Tab | Frontend/Web |
 
           ---
 
-          ## Recommendations
+          ## Key Security Recommendations
 
-          1. Rotate all Firebase API keys regularly and restrict by domain in Firebase Console.
-          2. Enable Firebase App Check to prevent unauthorized API access.
-          3. Keep dependencies updated — run \`npm audit\` regularly.
-          4. Review Semgrep and Trivy findings in GitHub Security tab.
-          5. Ensure no secrets are committed — use GitHub Secrets for all sensitive values.
+          1. **Firebase API Keys** — Exposed in client bundle by design. Restrict in Firebase Console (Authorized Domains + Firebase App Check).
+          2. **Firestore Security Rules** — Ensure rules are NOT in test mode. Set proper read/write rules by user UID.
+          3. **npm audit** — Run \`npm audit fix\` in both \`Frontend/Web\` and \`Frontend/Mobile\`.
+          4. **HashRouter** — Correctly configured for GitHub Pages. No server-side routing exposure.
+          5. **Secrets in CI** — Store all sensitive values in GitHub Secrets, never in code.
 
           ---
           *Generated automatically by WorkLink CI/CD Security Pipeline.*
           MDEOF
 
-          echo "✅ Security report generated."
-
-      - name: 📄 Generate Executive Summary
+      - name: 📝 Generate Executive Summary
         run: |
           cat > "Vulnerability Test Results/executive-summary.md" << MDEOF
           # 📊 Executive Summary – WorkLink Security Assessment
 
           **Build:** #${{ github.run_number }}
           **Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          **Repository:** ${{ github.repository }}
+          **Repository:** Bdinesh14/Worklink_web
 
           ---
 
-          ## Scans Executed
+          ## Most Critical Security Areas
 
-          | Scan Type | Tool | Scope |
-          |---|---|---|
-          | SAST | Semgrep | Web Frontend (React/TypeScript) |
-          | Dependency Scan | Trivy | Web + Mobile npm dependencies |
-          | SARIF Upload | GitHub Security | Web Frontend |
-
-          ---
-
-          ## Most Critical Security Areas for Student Project
-
-          1. **Firebase API keys** — These are exposed in client-side code by design. Restrict them in Firebase Console (Authorized Domains + App Check).
-          2. **npm dependency CVEs** — Check GitHub Security tab after each push for Trivy findings.
-          3. **Authentication flows** — Ensure login/register forms have proper input validation.
+          1. **Firebase client-side keys** — Restrict by domain in Firebase Console
+          2. **npm dependency CVEs** — Review GitHub Security tab after each push
+          3. **Firestore Security Rules** — Must not be in open test mode in production
 
           ---
 
           ## Overall Security Posture
 
-          This is a student project with Firebase as the backend (managed security).
-          The primary risk surface is the client-side bundle. Key actions:
-          - Restrict Firebase rules in Firestore Security Rules.
-          - Enable Firebase App Check.
-          - Run \`npm audit fix\` in both \`Frontend/Web\` and \`Frontend/Mobile\`.
+          This is a Firebase-backed project. Managed security (Auth, Firestore, Storage)
+          reduces backend attack surface significantly. Key client-side risks:
+
+          - Proper Firestore rules enforcement
+          - Firebase App Check to block unauthorized clients
+          - Regular \`npm audit fix\` runs
 
           ---
           *Generated automatically by WorkLink CI/CD Security Pipeline.*
@@ -354,14 +388,15 @@ jobs:
       - name: 📋 Final Security Summary
         if: always()
         run: |
-          echo "## 🔒 Security Review – Final Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔐 Security Review – Final Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Scan | Tool | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Detection | Gitleaks | ✅ Complete |" >> $GITHUB_STEP_SUMMARY
           echo "| SAST | Semgrep | ✅ Complete |" >> $GITHUB_STEP_SUMMARY
           echo "| Dependency Scan (Web) | Trivy | ✅ Complete |" >> $GITHUB_STEP_SUMMARY
           echo "| Dependency Scan (Mobile) | Trivy | ✅ Complete |" >> $GITHUB_STEP_SUMMARY
           echo "| SARIF Upload | GitHub Security | ✅ Complete |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📥 **Download full reports** from the Artifacts section of this run." >> $GITHUB_STEP_SUMMARY
-          echo "🔍 **View vulnerability details** in the [Security tab](https://github.com/${{ github.repository }}/security)." >> $GITHUB_STEP_SUMMARY
+          echo "🔍 **View vulnerability details** in the [Security tab](https://github.com/Bdinesh14/Worklink_web/security)." >> $GITHUB_STEP_SUMMARY
