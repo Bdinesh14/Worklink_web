@@ -30,6 +30,7 @@ import {
   Send,
   Phone,
   Sliders,
+  Bell,
 } from 'lucide-react-native';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -119,6 +120,7 @@ export const WorkerHomeScreen = ({ route, navigation }: { route: any; navigation
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   const locationFilter = route.params?.locationFilter || '';
@@ -207,11 +209,24 @@ export const WorkerHomeScreen = ({ route, navigation }: { route: any; navigation
         console.error('Worker posts query error:', err);
       });
 
+      // 4. Track pending incoming requests (hirer-to-worker)
+      const unsubNotifs = onValue(requestsRef, (snap) => {
+        if (snap.exists()) {
+          const pending = Object.values(snap.val()).filter(
+            (r: any) => r.workerUid === profile.uid && r.type === 'hirer-to-worker' && r.status === 'pending'
+          ).length;
+          setPendingCount(pending);
+        } else {
+          setPendingCount(0);
+        }
+      });
+
       // Cleanup listeners
       return () => {
         unsubJobs();
         unsubRequests();
         unsubPosts();
+        unsubNotifs();
       };
     }, [profile?.uid])
   );
@@ -286,14 +301,28 @@ export const WorkerHomeScreen = ({ route, navigation }: { route: any; navigation
           <Text style={styles.greetingText}>{greeting},</Text>
           <Text style={[styles.nameText, { color: COLORS.success }]}>{firstName} 👋</Text>
         </View>
-        <TouchableOpacity
-          style={styles.postAvailabilityBtn}
-          onPress={() => navigation.navigate('PostAvailability')}
-          activeOpacity={0.85}
-        >
-          <Send size={16} color={COLORS.white} />
-          <Text style={styles.postAvailabilityBtnText}>Post Skills</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.bellBtn} 
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
+            <Bell size={22} color={COLORS.textMedium} />
+            {pendingCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.postAvailabilityBtn}
+            onPress={() => navigation.navigate('PostAvailability')}
+            activeOpacity={0.85}
+          >
+            <Send size={16} color={COLORS.white} />
+            <Text style={styles.postAvailabilityBtnText}>Post Skills</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -546,6 +575,22 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
   },
   postAvailabilityBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bellBtn: { position: 'relative', padding: 4 },
+  bellBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: COLORS.error,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.white,
+  },
+  bellBadgeText: { color: COLORS.white, fontSize: 9, fontWeight: '800' },
   scrollContent: { padding: SPACING.md, paddingBottom: 80 },
 
   // Stats

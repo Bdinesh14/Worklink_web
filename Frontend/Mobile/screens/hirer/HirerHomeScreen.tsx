@@ -31,6 +31,7 @@ import {
   Send,
   Phone,
   Sliders,
+  Bell,
 } from 'lucide-react-native';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ export const HirerHomeScreen = ({ route, navigation }: { route: any; navigation:
   const [refreshing, setRefreshing] = useState(false);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   const locationFilter = route.params?.locationFilter || '';
@@ -188,11 +190,24 @@ export const HirerHomeScreen = ({ route, navigation }: { route: any; navigation:
         console.error('Requests subscription error:', err);
       });
 
+      // 4. Track pending incoming requests (worker-to-hirer)
+      const unsubNotifs = onValue(requestsRef, (snap) => {
+        if (snap.exists()) {
+          const pending = Object.values(snap.val()).filter(
+            (r: any) => r.hirerUid === profile.uid && r.type === 'worker-to-hirer' && r.status === 'pending'
+          ).length;
+          setPendingCount(pending);
+        } else {
+          setPendingCount(0);
+        }
+      });
+
       // Cleanup listeners
       return () => {
         unsubJobs();
         unsubPosts();
         unsubRequests();
+        unsubNotifs();
       };
     }, [profile?.uid])
   );
@@ -256,14 +271,28 @@ export const HirerHomeScreen = ({ route, navigation }: { route: any; navigation:
           <Text style={styles.greetingText}>{greeting},</Text>
           <Text style={styles.nameText}>{firstName} 👋</Text>
         </View>
-        <TouchableOpacity
-          style={styles.postJobBtn}
-          onPress={() => navigation.navigate('PostJob')}
-          activeOpacity={0.85}
-        >
-          <Plus size={18} color={COLORS.white} />
-          <Text style={styles.postJobBtnText}>Post Job</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.bellBtn} 
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
+            <Bell size={22} color={COLORS.textMedium} />
+            {pendingCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.postJobBtn}
+            onPress={() => navigation.navigate('PostJob')}
+            activeOpacity={0.85}
+          >
+            <Plus size={18} color={COLORS.white} />
+            <Text style={styles.postJobBtnText}>Post Job</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -506,7 +535,22 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   postJobBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
-
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bellBtn: { position: 'relative', padding: 4 },
+  bellBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: COLORS.error,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.white,
+  },
+  bellBadgeText: { color: COLORS.white, fontSize: 9, fontWeight: '800' },
   scrollContent: { paddingBottom: SPACING.xxl },
 
   // Stats

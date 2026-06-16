@@ -25,6 +25,7 @@ import { PostAvailabilityScreen } from './screens/worker/PostAvailabilityScreen'
 // Shared Flow
 import { FilterScreen } from './screens/FilterScreen';
 import { ManageReportsScreen } from './screens/ManageReportsScreen';
+import { NotificationsScreen } from './screens/NotificationsScreen';
 
 const Stack = createStackNavigator();
 
@@ -60,6 +61,7 @@ export default function App() {
             {/* Shared Screens */}
             <Stack.Screen name="Filter" component={FilterScreen} />
             <Stack.Screen name="ManageReports" component={ManageReportsScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </Stack.Navigator>
           <StatusBar style="dark" />
         </NavigationContainer>

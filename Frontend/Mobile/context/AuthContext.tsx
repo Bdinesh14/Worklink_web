@@ -10,6 +10,7 @@ interface UserProfile {
   phoneNumber: string;
   role: 'client' | 'worker';
   createdAt: string;
+  photoUrl?: string;
 }
 
 interface AuthContextType {
@@ -52,8 +53,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        // Fetch user profile from Realtime Database to determine their role
-        const userProfile = await fetchUserProfile(firebaseUser.uid);
+        // Fetch user profile from Realtime Database with a 3.5s timeout to prevent boot hang when offline
+        const profilePromise = fetchUserProfile(firebaseUser.uid);
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
+        
+        const userProfile = await Promise.race([profilePromise, timeoutPromise]);
         if (userProfile) {
           setProfile(userProfile);
           setRole(userProfile.role);

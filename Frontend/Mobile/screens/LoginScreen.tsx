@@ -25,7 +25,6 @@ export const LoginScreen = ({ route, navigation }: { route: any; navigation: any
   
   // General status
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('error');
   const [toastVisible, setToastVisible] = useState(false);
@@ -144,11 +143,6 @@ export const LoginScreen = ({ route, navigation }: { route: any; navigation: any
     }
   };
 
-  // Google Sign-In coming soon alert
-  const handleGoogleSignIn = () => {
-    showToast('Google Sign-In will be available soon. Please use email and password.', 'info');
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <Toast
@@ -217,24 +211,6 @@ export const LoginScreen = ({ route, navigation }: { route: any; navigation: any
             style={styles.loginBtn}
           />
         </View>
-
-        {/* Separator */}
-        <View style={styles.separatorContainer}>
-          <View style={styles.separatorLine} />
-          <Text style={styles.separatorText}>OR</Text>
-          <View style={styles.separatorLine} />
-        </View>
-
-        {/* Google Authentication Button */}
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleGoogleSignIn}
-          disabled={googleLoading || loading}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.googleG}>G</Text>
-          <Text style={styles.googleButtonText}>Continue with Google</Text>
-        </TouchableOpacity>
 
         {/* Signup Footer Navigation */}
         <View style={styles.footerLinkContainer}>
@@ -332,45 +308,7 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     marginTop: SPACING.sm,
-  },
-  separatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: SPACING.lg,
-  },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  separatorText: {
-    marginHorizontal: SPACING.md,
-    color: COLORS.textLight,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    height: 52,
-    backgroundColor: COLORS.white,
-    ...SHADOWS.sm,
     marginBottom: SPACING.lg,
-  },
-  googleG: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: COLORS.googleRed,
-  },
-  googleButtonText: {
-    color: COLORS.textDark,
-    fontSize: 15,
-    fontWeight: '600',
-    marginLeft: SPACING.sm,
   },
   footerLinkContainer: {
     flexDirection: 'row',

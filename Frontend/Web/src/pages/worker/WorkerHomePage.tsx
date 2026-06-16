@@ -40,6 +40,7 @@ export const WorkerHomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
 
 
   useEffect(() => {
@@ -97,6 +98,22 @@ export const WorkerHomePage: React.FC = () => {
     return () => unsub();
   }, [profile?.uid]);
 
+  // Track unread notifications
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const unsub = onValue(ref(database, 'notifications'), (snap) => {
+      if (snap.exists()) {
+        const pending = Object.values(snap.val()).filter(
+          (n: any) => n.userId === profile.uid && n.status === 'pending'
+        ).length;
+        setNotificationCount(pending);
+      } else {
+        setNotificationCount(0);
+      }
+    });
+    return () => unsub();
+  }, [profile?.uid]);
+
 
   const handleSendRequest = async (job: any) => {
     if (!profile?.uid) return;
@@ -145,7 +162,7 @@ export const WorkerHomePage: React.FC = () => {
             onClick={() => navigate('/worker/notifications')}
           >
             <Bell size={22} color="var(--color-text-medium)" />
-            {pendingCount > 0 && (
+            {(pendingCount > 0 || notificationCount > 0) && (
               <span style={{
                 position: 'absolute', top: '2px', right: '2px',
                 backgroundColor: 'var(--color-error)',

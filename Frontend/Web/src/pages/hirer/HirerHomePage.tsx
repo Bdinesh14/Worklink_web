@@ -47,6 +47,7 @@ export const HirerHomePage: React.FC = () => {
   const [locationFilter] = useState(''); // Could come from query params
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
 
 
   useEffect(() => {
@@ -100,7 +101,19 @@ export const HirerHomePage: React.FC = () => {
       }
     });
 
-    return () => { unsubJobs(); unsubPosts(); unsubReqs(); unsubNotifs(); };
+    // Track unread notifications
+    const unsubActualNotifs = onValue(ref(database, 'notifications'), (snap) => {
+      if (snap.exists()) {
+        const pending = Object.values(snap.val()).filter(
+          (n: any) => n.userId === profile.uid && n.status === 'pending'
+        ).length;
+        setNotificationCount(pending);
+      } else {
+        setNotificationCount(0);
+      }
+    });
+
+    return () => { unsubJobs(); unsubPosts(); unsubReqs(); unsubNotifs(); unsubActualNotifs(); };
   }, [profile?.uid]);
 
   const handleSendRequest = async (wp: WorkerPost) => {
@@ -151,7 +164,7 @@ export const HirerHomePage: React.FC = () => {
             onClick={() => navigate('/hirer/notifications')}
           >
             <Bell size={22} color="var(--color-text-medium)" />
-            {pendingCount > 0 && (
+            {(pendingCount > 0 || notificationCount > 0) && (
               <span style={{
                 position: 'absolute', top: '2px', right: '2px',
                 backgroundColor: 'var(--color-error)',
