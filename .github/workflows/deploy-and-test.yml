@@ -7,22 +7,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Required for GitHub Pages deployment
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Only one deployment at a time
 concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────────────────
-# JOB 1: Build the Vite app and deploy to GitHub Pages
+# JOB 1 – Build Vite app and deploy to GitHub Pages
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  build-and-deploy:
+  deploy:
     name: 🌐 Deploy to GitHub Pages
     runs-on: ubuntu-latest
     environment:
@@ -46,17 +44,17 @@ jobs:
         working-directory: Frontend/Web
         run: npm ci
 
-      - name: 🔨 Build React app (Vite) for GitHub Pages
+      - name: 🔨 Build Vite React app
         working-directory: Frontend/Web
         run: npm run build
         env:
-          # Sets Vite base path to /<repo-name>/ so all assets load correctly
+          # Set Vite base path to /<repo-name>/ so assets load from subdirectory
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
 
       - name: ⚙️ Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: 📤 Upload build as Pages artifact
+      - name: 📤 Upload dist as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: Frontend/Web/dist
@@ -66,16 +64,15 @@ jobs:
         uses: actions/deploy-pages@v4
 
 # ─────────────────────────────────────────────────────────────────────────────
-# JOB 2: Verify the deployment is live and run Selenium E2E tests
+# JOB 2 – Verify live deployment and run Selenium E2E tests
 # ─────────────────────────────────────────────────────────────────────────────
-  verify-and-test:
+  selenium-e2e:
     name: 🔍 Verify Live Deployment + 🧪 Selenium E2E Tests
     runs-on: ubuntu-latest
-    needs: build-and-deploy
-    if: always() && needs.build-and-deploy.result == 'success'
-
+    needs: deploy
+    if: needs.deploy.result == 'success'
     env:
-      BASE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
+      BASE_URL: ${{ needs.deploy.outputs.page_url }}
 
     steps:
       - name: ⬇️ Checkout repository
@@ -86,66 +83,68 @@ jobs:
         with:
           node-version: 20
 
-      - name: ⏳ Wait for deployment to propagate (30s)
+      - name: ⏳ Wait 30s for CDN propagation
         run: sleep 30
 
       - name: ✅ Verify deployed URL returns HTTP 200
         run: |
-          echo "Testing deployment at: $BASE_URL"
+          echo "🔗 Testing: $BASE_URL"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL")
           echo "HTTP Status: $STATUS"
           if [ "$STATUS" != "200" ]; then
-            echo "❌ Deployment check failed. HTTP $STATUS received."
+            echo "❌ Deployment check FAILED — HTTP $STATUS"
             exit 1
           fi
-          echo "✅ Deployment verified successfully (HTTP 200)."
+          echo "✅ Deployment live (HTTP 200)"
 
-      - name: 🌐 Install Google Chrome (stable)
+      - name: 🌐 Install Google Chrome
         run: |
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
           sudo sh -c 'echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
           sudo apt-get update -qq
           sudo apt-get install -y google-chrome-stable
 
-      - name: 📦 Install E2E test dependencies
+      - name: 📦 Install E2E dependencies
         working-directory: Frontend/Web/e2e
         run: npm ci
 
-      - name: 🧪 Run Selenium E2E tests against live GitHub Pages
+      - name: 🧪 Run Selenium E2E tests (live GitHub Pages URL)
         working-directory: Frontend/Web/e2e
         run: npm test
+        continue-on-error: true
         env:
-          BASE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
-        continue-on-error: true  # Always generate reports even if tests fail
+          BASE_URL: ${{ needs.deploy.outputs.page_url }}
 
       - name: 📊 Generate Excel + Markdown reports
         working-directory: Frontend/Web/e2e
         if: always()
         run: node utils/reportGenerator.js
         env:
-          BASE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
+          BASE_URL: ${{ needs.deploy.outputs.page_url }}
 
-      - name: 📤 Upload all test artifacts
+      - name: 📤 Upload test artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: E2E-Test-Results-${{ github.run_number }}
-          path: |
-            Frontend/Web/e2e/Test Results/
+          name: Selenium-Test-Results-${{ github.run_number }}
+          path: Frontend/Web/e2e/Test Results/
           retention-days: 30
 
       - name: 📋 Publish GitHub Actions Step Summary
         if: always()
         run: |
-          SUMMARY_FILE="Frontend/Web/e2e/Test Results/Summary/summary.md"
-          echo "## 🧪 E2E Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Live GitHub Pages E2E Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Deployment URL:** $BASE_URL" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Number:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment URL** | $BASE_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build Number** | #${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered by** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Execution Date** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f "$SUMMARY_FILE" ]; then
-            cat "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY
+          SUMMARY="Frontend/Web/e2e/Test Results/Summary/summary.md"
+          if [ -f "$SUMMARY" ]; then
+            cat "$SUMMARY" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Summary file not generated." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Summary report was not generated." >> $GITHUB_STEP_SUMMARY
           fi

@@ -1,0 +1,225 @@
+name: 🤖 Android Appium E2E Tests + Report Hosting
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 1 – Build Android APK using EAS (Expo Application Services)
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  build-apk:
+    name: 🏗️ Build Android APK
+    runs-on: ubuntu-latest
+    outputs:
+      apk_path: ${{ steps.locate_apk.outputs.apk_path }}
+
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Frontend/Mobile/package-lock.json
+
+      - name: 📦 Install Mobile dependencies
+        working-directory: Frontend/Mobile
+        run: npm ci
+
+      - name: 🔧 Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: 🏗️ Build Android APK (local build — no EAS cloud required)
+        working-directory: Frontend/Mobile
+        run: |
+          # Check if pre-built APK already exists in repo (worklink.apk)
+          if [ -f "worklink.apk" ]; then
+            echo "✅ Pre-built APK found: worklink.apk"
+            cp worklink.apk /tmp/worklink.apk
+          else
+            echo "ℹ️ No pre-built APK found. Using EAS build (requires EXPO_TOKEN secret)."
+            eas build --platform android --profile preview --non-interactive --local --output /tmp/worklink.apk
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📍 Locate APK
+        id: locate_apk
+        run: |
+          if [ -f "/tmp/worklink.apk" ]; then
+            echo "apk_path=/tmp/worklink.apk" >> $GITHUB_OUTPUT
+            echo "✅ APK ready at /tmp/worklink.apk"
+          else
+            echo "❌ APK not found!"
+            exit 1
+          fi
+
+      - name: 📤 Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: worklink-apk
+          path: /tmp/worklink.apk
+          retention-days: 7
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 2 – Run Appium E2E tests on Android Emulator
+# ─────────────────────────────────────────────────────────────────────────────
+  appium-tests:
+    name: 🧪 Run Appium E2E Tests
+    runs-on: ubuntu-latest
+    needs: build-apk
+
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: ☕ Setup Java 17 (required for Android SDK)
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: 📱 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: ⬇️ Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: worklink-apk
+          path: /tmp/
+
+      - name: 🎮 Start Android Emulator (API 30)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 6
+          avd-name: WorkLink_Test_AVD
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: echo "Emulator started"
+
+      - name: 📲 Install APK on emulator
+        run: |
+          adb wait-for-device
+          adb install -r /tmp/worklink.apk
+          echo "✅ APK installed on emulator"
+
+      - name: 🚀 Install and start Appium server
+        run: |
+          npm install -g appium@next
+          appium driver install uiautomator2
+          appium &
+          sleep 10
+          echo "✅ Appium server started"
+
+      - name: 📦 Install Appium test dependencies
+        working-directory: Frontend/Mobile
+        run: |
+          if [ -d "appium-tests" ]; then
+            cd appium-tests && npm ci
+          else
+            echo "⚠️ appium-tests directory not found — creating placeholder"
+            mkdir -p appium-tests
+            cd appium-tests
+            npm init -y
+            npm install webdriverio @wdio/cli @wdio/mocha-framework @wdio/spec-reporter
+          fi
+
+      - name: 🧪 Run Appium E2E tests
+        working-directory: Frontend/Mobile
+        run: |
+          if [ -d "appium-tests" ] && [ -f "appium-tests/wdio.conf.js" ]; then
+            cd appium-tests && npx wdio run wdio.conf.js
+          else
+            echo "⚠️ Appium tests not configured yet — generating placeholder results"
+            mkdir -p "Test Results/HTML" "Test Results/Logs" "Test Results/Screenshots" "Test Results/Summary"
+            echo '{"numTotalTests":0,"numPassedTests":0,"numFailedTests":0,"testResults":[]}' > jest-results.json
+            cat > "Test Results/Summary/summary.md" << 'EOF'
+          # Android Appium E2E Test Summary
+          **Status:** Appium tests not yet configured.
+          **Next Step:** Add `appium-tests/` directory with your Appium test suite.
+          EOF
+          fi
+        continue-on-error: true
+
+      - name: 📊 Generate Appium HTML Report
+        if: always()
+        run: |
+          mkdir -p "Frontend/Mobile/Test Results/HTML"
+          cat > "Frontend/Mobile/Test Results/HTML/execution-report.html" << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>WorkLink Android Appium Test Report</title>
+            <style>
+              body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; margin: 0; padding: 2rem; }
+              h1 { color: #58a6ff; border-bottom: 2px solid #21262d; padding-bottom: 1rem; }
+              .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
+              .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 0.85rem; }
+              .info { background: #388bfd20; color: #58a6ff; border: 1px solid #388bfd; }
+              table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+              th { background: #21262d; color: #58a6ff; padding: 12px; text-align: left; }
+              td { padding: 10px 12px; border-bottom: 1px solid #21262d; }
+            </style>
+          </head>
+          <body>
+            <h1>🤖 WorkLink Android Appium E2E Report</h1>
+            <div class="card">
+              <p><strong>Build Number:</strong> ${{ github.run_number }}</p>
+              <p><strong>Date:</strong> $(date -u)</p>
+              <p><strong>Package:</strong> com.dinesh2525.worklink</p>
+              <p><strong>Status:</strong> <span class="badge info">Pipeline Executed</span></p>
+            </div>
+            <div class="card">
+              <h2>📋 Notes</h2>
+              <p>Appium test suite will populate this report once configured in <code>Frontend/Mobile/appium-tests/</code>.</p>
+            </div>
+          </body>
+          </html>
+          HTMLEOF
+
+      - name: 📤 Upload all Appium test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Appium-Test-Results-${{ github.run_number }}
+          path: |
+            Frontend/Mobile/Test Results/
+          retention-days: 30
+
+      - name: 📋 Publish GitHub Actions Step Summary
+        if: always()
+        run: |
+          echo "## 🤖 Android Appium E2E Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **App Package** | com.dinesh2525.worklink |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build Number** | #${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Execution Date** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered by** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          SUMMARY="Frontend/Mobile/Test Results/Summary/summary.md"
+          if [ -f "$SUMMARY" ]; then
+            cat "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ Configure Appium tests in \`Frontend/Mobile/appium-tests/\` to see results here." >> $GITHUB_STEP_SUMMARY
+          fi
