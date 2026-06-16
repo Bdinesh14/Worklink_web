@@ -8,9 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 env:
   GITHUB_USERNAME: Bdinesh14
@@ -286,55 +284,38 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────
-  # JOB 3: Publish Reports to GitHub Pages
+  # JOB 3: Publish Reports as Artifacts
+  # NOTE: We do NOT deploy to GitHub Pages here because the
+  # Deploy workflow owns Pages and deploys the React app there.
+  # Appium reports are available as downloadable GitHub Artifacts.
   # ─────────────────────────────────────────────
   publish-reports:
     name: 📄 Publish Reports to GitHub Pages
     needs: appium-tests
     runs-on: ubuntu-latest
-    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    environment:
-      name: github-pages
-      url: ${{ env.REPORT_BASE_URL }}
+    if: always()
 
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
       - name: 📥 Download test results
         uses: actions/download-artifact@v4
         with:
           name: Appium-Test-Results-${{ github.run_number }}
-          path: ./downloaded-results/
+          path: ./test-reports/
         continue-on-error: true
 
-      - name: 📁 Prepare report directory
+      - name: 📋 List generated reports
+        if: always()
         run: |
-          mkdir -p reports/latest/screenshots reports/latest/logs reports/history/build-${{ github.run_number }}
-
-          if [ -d "downloaded-results" ]; then
-            cp -r downloaded-results/. reports/latest/ 2>/dev/null || true
-            cp -r downloaded-results/. reports/history/build-${{ github.run_number }}/ 2>/dev/null || true
+          echo "## 📄 Appium Report Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the **Appium-Test-Results-${{ github.run_number }}** artifact from the" >> $GITHUB_STEP_SUMMARY
+          echo "Actions run summary to view the full HTML report." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -d "./test-reports" ]; then
+            find ./test-reports -type f | while read f; do
+              echo "- \`$f\`" >> $GITHUB_STEP_SUMMARY
+            done
+          else
+            echo "- No reports found yet." >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Create a default index if missing
-          if [ ! -f "reports/latest/execution-report.html" ]; then
-            cat > reports/latest/execution-report.html << 'HTMLEOF'
-          <!DOCTYPE html>
-          <html lang="en"><head><meta charset="UTF-8"><title>WorkLink Appium Reports</title>
-          <style>body{font-family:system-ui;background:#0d1117;color:#e6edf3;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;gap:1rem;}h1{color:#58a6ff;}p{color:#8b949e;}</style>
-          </head><body><h1>🤖 WorkLink Appium Reports</h1><p>Reports will appear here after the first test run.</p></body></html>
-          HTMLEOF
-          fi
-
-          echo "✅ Report directory prepared"
-
-      - name: 📤 Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: reports/
-
-      - name: 🌐 Deploy Reports to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
