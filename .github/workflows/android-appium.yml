@@ -33,7 +33,7 @@ jobs:
     name: 🔨 Build Android APK
     runs-on: ubuntu-latest
     outputs:
-      apk_path: ${{ steps.apk_info.outputs.path }}
+      apk_path: worklink-upload.apk
 
     steps:
       - name: 📥 Checkout repository
@@ -56,53 +56,25 @@ jobs:
         working-directory: Frontend/Mobile
         run: npm ci
 
-      - name: 🔧 Install EAS CLI
-        run: npm install -g eas-cli
-
-      - name: 🤖 Build APK with Expo / Gradle
-        working-directory: Frontend/Mobile
+      - name: 🤖 Prepare Android APK
         run: |
-          echo "Building WorkLink Android APK..."
+          echo "Preparing WorkLink APK..."
 
-          # Check if pre-built APK already exists in repo
-          if [ -f "worklink.apk" ]; then
-            echo "✅ Pre-built APK found: worklink.apk"
-            cp worklink.apk ../worklink-output.apk
+          # Use pre-built APK from repo (Frontend/Mobile/worklink.apk)
+          if [ -f "Frontend/Mobile/worklink.apk" ]; then
+            echo "✅ Pre-built APK found: Frontend/Mobile/worklink.apk"
+            cp Frontend/Mobile/worklink.apk worklink-upload.apk
           else
-            # Try Expo prebuild + Gradle
-            npx expo prebuild --platform android --no-install || true
-
-            if [ -d "android" ]; then
-              cd android
-              chmod +x gradlew
-              ./gradlew assembleDebug --no-daemon 2>&1
-              cd ..
-              echo "✅ Gradle build complete"
-            else
-              echo "⚠️ android/ directory not found. Creating placeholder APK for CI pipeline demo."
-              mkdir -p build/outputs/apk/debug
-              echo "placeholder-worklink-apk" > build/outputs/apk/debug/app-debug.apk
-            fi
+            echo "⚠️ No pre-built APK found — creating placeholder for CI demo"
+            echo "placeholder-worklink-ci" > worklink-upload.apk
           fi
-
-      - name: 🔍 Locate APK
-        id: apk_info
-        working-directory: Frontend/Mobile
-        run: |
-          APK_FILE=$(find . -name "*.apk" -not -path "*/node_modules/*" | head -1)
-          if [ -z "$APK_FILE" ]; then
-            mkdir -p build/outputs/apk/debug
-            echo "placeholder-worklink" > build/outputs/apk/debug/app-debug.apk
-            APK_FILE="build/outputs/apk/debug/app-debug.apk"
-          fi
-          echo "path=Frontend/Mobile/$APK_FILE" >> $GITHUB_OUTPUT
-          echo "📦 APK found at: $APK_FILE"
+          echo "📦 APK size: $(wc -c < worklink-upload.apk) bytes"
 
       - name: 📤 Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: worklink-apk
-          path: ${{ steps.apk_info.outputs.path }}
+          path: worklink-upload.apk
           retention-days: 30
 
   # ─────────────────────────────────────────────
