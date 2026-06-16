@@ -1,0 +1,21 @@
+{
+  "name": "worklink-e2e-tests",
+  "version": "1.0.0",
+  "description": "Selenium E2E Tests for WorkLink Live GitHub Pages Deployment",
+  "private": true,
+  "scripts": {
+    "test": "jest --json --outputFile=jest-results.json",
+    "report": "node utils/reportGenerator.js",
+    "test:report": "npm test; node utils/reportGenerator.js"
+  },
+  "dependencies": {
+    "selenium-webdriver": "^4.21.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-html-reporter": "^3.10.2",
+    "exceljs": "^4.4.0",
+    "fs-extra": "^11.2.0",
+    "chromedriver": "^126.0.0"
+  }
+}

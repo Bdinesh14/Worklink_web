@@ -1,0 +1,151 @@
+name: 🚀 Deploy to GitHub Pages + Selenium E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Required for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 1: Build the Vite app and deploy to GitHub Pages
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  build-and-deploy:
+    name: 🌐 Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Frontend/Web/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: Frontend/Web
+        run: npm ci
+
+      - name: 🔨 Build React app (Vite) for GitHub Pages
+        working-directory: Frontend/Web
+        run: npm run build
+        env:
+          # Sets Vite base path to /<repo-name>/ so all assets load correctly
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      - name: ⚙️ Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📤 Upload build as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: Frontend/Web/dist
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 2: Verify the deployment is live and run Selenium E2E tests
+# ─────────────────────────────────────────────────────────────────────────────
+  verify-and-test:
+    name: 🔍 Verify Live Deployment + 🧪 Selenium E2E Tests
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: always() && needs.build-and-deploy.result == 'success'
+
+    env:
+      BASE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
+
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: ⏳ Wait for deployment to propagate (30s)
+        run: sleep 30
+
+      - name: ✅ Verify deployed URL returns HTTP 200
+        run: |
+          echo "Testing deployment at: $BASE_URL"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL")
+          echo "HTTP Status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Deployment check failed. HTTP $STATUS received."
+            exit 1
+          fi
+          echo "✅ Deployment verified successfully (HTTP 200)."
+
+      - name: 🌐 Install Google Chrome (stable)
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
+          sudo apt-get update -qq
+          sudo apt-get install -y google-chrome-stable
+
+      - name: 📦 Install E2E test dependencies
+        working-directory: Frontend/Web/e2e
+        run: npm ci
+
+      - name: 🧪 Run Selenium E2E tests against live GitHub Pages
+        working-directory: Frontend/Web/e2e
+        run: npm test
+        env:
+          BASE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
+        continue-on-error: true  # Always generate reports even if tests fail
+
+      - name: 📊 Generate Excel + Markdown reports
+        working-directory: Frontend/Web/e2e
+        if: always()
+        run: node utils/reportGenerator.js
+        env:
+          BASE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
+
+      - name: 📤 Upload all test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: E2E-Test-Results-${{ github.run_number }}
+          path: |
+            Frontend/Web/e2e/Test Results/
+          retention-days: 30
+
+      - name: 📋 Publish GitHub Actions Step Summary
+        if: always()
+        run: |
+          SUMMARY_FILE="Frontend/Web/e2e/Test Results/Summary/summary.md"
+          echo "## 🧪 E2E Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment URL:** $BASE_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Number:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f "$SUMMARY_FILE" ]; then
+            cat "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Summary file not generated." >> $GITHUB_STEP_SUMMARY
+          fi
