@@ -375,7 +375,7 @@ export const HirerHomeScreen = ({ route, navigation }: { route: any; navigation:
           </View>
         ) : null}
 
-        {/* ── Post by Category ── */}
+        {/* ── Categories ── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Post by Category</Text>
         </View>

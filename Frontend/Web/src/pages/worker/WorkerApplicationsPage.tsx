@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Check, X, Briefcase, Phone, MessageSquare } from 'lucide-react';
-import { ref, onValue, update } from 'firebase/database';
+import { ref, onValue, update, set } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Toast } from '../../components/Toast';
@@ -56,9 +56,24 @@ export const WorkerApplicationsPage: React.FC = () => {
     return () => unsub();
   }, [profile?.uid]);
 
-  const handleStatusChange = async (reqId: string, status: 'accepted' | 'rejected') => {
+  const handleStatusChange = async (req: any, status: 'accepted' | 'rejected') => {
     try {
-      await update(ref(database, `requests/${reqId}`), { status });
+      await update(ref(database, `requests/${req.id}`), { status });
+      
+      if (status === 'accepted') {
+        const chatId = [req.hirerUid, req.workerUid].sort().join('_');
+        const chatData = {
+          hirerUid: req.hirerUid,
+          hirerName: req.hirerName || 'Hirer',
+          workerUid: req.workerUid,
+          workerName: profile?.fullName || 'Worker',
+          lastMessage: '',
+          lastMessageAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+        await set(ref(database, `chats/${chatId}`), chatData);
+      }
+
       setToastMsg(`Request ${status}`);
     } catch (e) {
       console.error(e);
@@ -81,9 +96,6 @@ export const WorkerApplicationsPage: React.FC = () => {
       <Toast message={toastMsg} visible={!!toastMsg} onDismiss={() => setToastMsg(null)} type="info" />
       <header className="home-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="icon-btn" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} color="var(--color-text-medium)" />
-          </button>
           <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Applications</h1>
         </div>
         <div style={{ width: 40 }} />
@@ -185,10 +197,10 @@ export const WorkerApplicationsPage: React.FC = () => {
 
                 {activeTab === 'received' && req.status === 'pending' && (
                   <div style={{ display: 'flex', gap: 12, marginTop: '12px', borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
-                    <button className="btn btn-outline" style={{ flex: 1, borderColor: 'var(--color-error)', color: 'var(--color-error)', height: '36px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }} onClick={() => handleStatusChange(req.id, 'rejected')}>
+                    <button className="btn btn-outline" style={{ flex: 1, borderColor: 'var(--color-error)', color: 'var(--color-error)', height: '36px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }} onClick={() => handleStatusChange(req, 'rejected')}>
                       <X size={16} /> Reject
                     </button>
-                    <button className="btn btn-primary" style={{ flex: 1, backgroundColor: 'var(--color-success)', height: '36px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }} onClick={() => handleStatusChange(req.id, 'accepted')}>
+                    <button className="btn btn-primary" style={{ flex: 1, backgroundColor: 'var(--color-success)', height: '36px', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }} onClick={() => handleStatusChange(req, 'accepted')}>
                       <Check size={16} /> Accept
                     </button>
                   </div>

@@ -407,14 +407,19 @@ export const WorkerHomeScreen = ({ route, navigation }: { route: any; navigation
 
         {/* Categories horizontal list */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Categories</Text>
+          <Text style={styles.sectionTitle}>Post by Category</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
           {Object.entries(CATEGORY_ICONS).map(([cat, icon]) => (
-            <View key={cat} style={styles.categoryChip}>
+            <TouchableOpacity 
+              key={cat} 
+              style={styles.categoryChip}
+              onPress={() => navigation.navigate('PostAvailability', { preselectedCategory: cat })}
+              activeOpacity={0.8}
+            >
               {icon}
               <Text style={styles.categoryChipText}>{cat}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </ScrollView>
 

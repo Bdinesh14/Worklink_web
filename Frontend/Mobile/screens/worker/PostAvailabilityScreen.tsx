@@ -126,11 +126,12 @@ const ddStyles = StyleSheet.create({
   optionDesc: { fontSize: 12, color: COLORS.textMedium, marginTop: 2 },
 });
 
-export const PostAvailabilityScreen = ({ navigation }: { navigation: any }) => {
+export const PostAvailabilityScreen = ({ route, navigation }: { route: any; navigation: any }) => {
   const { profile } = useAuth();
+  const preselectedCategory = route.params?.preselectedCategory || '';
 
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(preselectedCategory);
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [rateType, setRateType] = useState<'fixed' | 'hourly'>('hourly');
@@ -205,10 +206,7 @@ export const PostAvailabilityScreen = ({ navigation }: { navigation: any }) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={22} color={COLORS.textMedium} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Advertise Your Skills</Text>
+          <Text style={styles.headerTitle}>Post Availability</Text>
         <View style={{ width: 40 }} />
       </View>
 

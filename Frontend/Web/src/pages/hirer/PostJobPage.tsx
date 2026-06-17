@@ -85,10 +85,7 @@ export const PostJobPage: React.FC = () => {
       <Toast message={toastMsg} visible={!!toastMsg} onDismiss={() => setToastMsg(null)} type="success" />
 
       <header className="home-header">
-        <button className="icon-btn" onClick={() => navigate(-1)}>
-          <ArrowLeft size={22} color="var(--color-text-medium)" />
-        </button>
-        <h2 className="section-title">Post a Job</h2>
+          <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Post a New Job</h1>
         <div style={{ width: 40 }} />
       </header>
 

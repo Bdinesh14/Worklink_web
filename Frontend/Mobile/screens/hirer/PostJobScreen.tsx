@@ -214,9 +214,6 @@ export const PostJobScreen = ({ route, navigation }: { route: any; navigation: a
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={22} color={COLORS.textMedium} />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Post a Job</Text>
         <View style={{ width: 40 }} />
       </View>

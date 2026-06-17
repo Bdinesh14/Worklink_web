@@ -19,33 +19,34 @@ export const ChatListPage: React.FC = () => {
   useEffect(() => {
     if (!profile?.uid) return;
     
-    // We infer chats from accepted requests
-    const unsub = onValue(ref(database, 'requests'), (snap) => {
+    const unsub = onValue(ref(database, 'chats'), (snap) => {
       if (snap.exists()) {
         const list = Object.entries(snap.val())
           .map(([id, val]: any) => ({ id, ...val }))
-          .filter(r => (r.hirerUid === profile.uid || r.workerUid === profile.uid) && r.status === 'accepted');
+          .filter(c => c.hirerUid === profile.uid || c.workerUid === profile.uid || c.id.includes(profile.uid));
         
-        // Group by the other person
-        const chatMap = new Map();
-        list.forEach(req => {
-          const isHirer = profile.role === 'client';
-          const otherUid = isHirer ? req.workerUid : req.hirerUid;
-          const otherName = isHirer ? req.workerName : req.hirerName;
-          const chatId = [profile.uid, otherUid].sort().join('_'); // Unique chat ID between two users
+        const isHirer = profile.role === 'client';
+        const formattedChats = list.map(c => {
+          let otherUid = isHirer ? c.workerUid : c.hirerUid;
+          let otherName = isHirer ? c.workerName : c.hirerName;
           
-          if (!chatMap.has(chatId)) {
-            chatMap.set(chatId, {
-              chatId,
-              otherUid,
-              otherName,
-              jobTitle: req.jobTitle || req.workerPostTitle,
-              updatedAt: req.createdAt
-            });
+          if (!otherUid) {
+            otherUid = c.id.split('_').find((u: string) => u !== profile.uid) || 'unknown';
           }
+          if (!otherName) {
+            otherName = 'User';
+          }
+
+          return {
+            chatId: c.id || c.chatId || [c.hirerUid, c.workerUid].sort().join('_'),
+            otherUid,
+            otherName,
+            lastMessage: c.lastMessage || 'No messages yet',
+            updatedAt: c.lastMessageAt || c.createdAt || new Date().toISOString()
+          };
         });
         
-        setChats(Array.from(chatMap.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+        setChats(formattedChats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
       } else {
         setChats([]);
       }
@@ -57,10 +58,7 @@ export const ChatListPage: React.FC = () => {
   return (
     <div className="home-container animate-fade-in">
       <header className="home-header">
-        <button className="icon-btn" onClick={() => navigate(-1)}>
-          <ArrowLeft size={22} color="var(--color-text-medium)" />
-        </button>
-        <h2 className="section-title">Messages</h2>
+          <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Messages</h1>
         <div style={{ width: 40 }} />
       </header>
       
@@ -87,7 +85,7 @@ export const ChatListPage: React.FC = () => {
                 <div className="chat-header-row">
                   <span className="chat-name">{chat.otherName}</span>
                 </div>
-                <span className="chat-last-msg">RE: {chat.jobTitle}</span>
+                <span className="chat-last-msg">{chat.lastMessage}</span>
               </div>
             </div>
           ))

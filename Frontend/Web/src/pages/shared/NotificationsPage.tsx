@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bell, Briefcase, MessageSquare, CheckCircle, Clock } from 'lucide-react';
-import { ref, onValue, update } from 'firebase/database';
+import { ref, onValue, update, set } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Toast } from '../../components/Toast';
@@ -57,9 +57,22 @@ export const NotificationsPage: React.FC = () => {
     return () => unsub();
   }, [profile?.uid, isWorker]);
 
-  const handleAccept = async (reqId: string) => {
+  const handleAccept = async (req: any) => {
     try {
-      await update(ref(database, `requests/${reqId}`), { status: 'accepted' });
+      await update(ref(database, `requests/${req.id}`), { status: 'accepted' });
+      
+      const chatId = [req.hirerUid, req.workerUid].sort().join('_');
+      const chatData = {
+        hirerUid: req.hirerUid,
+        hirerName: req.hirerName || 'Hirer',
+        workerUid: req.workerUid,
+        workerName: req.workerName || 'Worker',
+        lastMessage: '',
+        lastMessageAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      await set(ref(database, `chats/${chatId}`), chatData);
+
       setToastMsg('Request accepted! You can now chat.');
     } catch (e) {
       console.error(e);
@@ -106,9 +119,6 @@ export const NotificationsPage: React.FC = () => {
       <Toast message={toastMsg} visible={!!toastMsg} onDismiss={() => setToastMsg(null)} type="info" />
       <header className="home-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="icon-btn" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} color="var(--color-text-medium)" />
-          </button>
           <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Notifications</h1>
           {pendingCount > 0 && (
             <span style={{
@@ -189,7 +199,7 @@ export const NotificationsPage: React.FC = () => {
                     Reject
                   </button>
                   <button
-                    onClick={() => handleAccept(notif.id)}
+                    onClick={() => handleAccept(notif)}
                     style={{
                       flex: 1, padding: '8px', borderRadius: '10px',
                       border: 'none', backgroundColor: accentColor,

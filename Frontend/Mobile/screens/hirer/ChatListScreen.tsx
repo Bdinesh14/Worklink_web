@@ -26,8 +26,10 @@ interface Chat {
   createdAt: string;
 }
 
-const getInitials = (name: string) =>
-  name.split(' ').map((n) => n[0] ?? '').join('').toUpperCase().slice(0, 2);
+const getInitials = (name?: string) => {
+  if (!name) return '?';
+  return name.split(' ').map((n) => n[0] ?? '').join('').toUpperCase().slice(0, 2);
+};
 
 const AVATAR_COLORS = [
   '#0061C9', '#10B981', '#8B5CF6', '#EF4444',
@@ -55,15 +57,12 @@ export const ChatListScreen = ({ navigation }: { navigation: any }) => {
   useEffect(() => {
     if (!profile?.uid || !profile?.role) return;
 
-    const q = query(
-      ref(database, 'chats'),
-      orderByChild(profile.role === 'client' ? 'hirerUid' : 'workerUid'),
-      equalTo(profile.uid)
-    );
-
-    const unsubscribe = onValue(q, (snap) => {
+    const unsubscribe = onValue(ref(database, 'chats'), (snap) => {
       if (snap.exists()) {
-        const list: Chat[] = Object.entries(snap.val()).map(([id, val]: any) => ({ id, ...val }));
+        const list: Chat[] = Object.entries(snap.val())
+          .map(([id, val]: any) => ({ id, ...val }))
+          .filter((c: any) => c.hirerUid === profile.uid || c.workerUid === profile.uid || c.id.includes(profile.uid));
+        
         list.sort((a, b) => {
           const timeA = a.lastMessageAt || a.createdAt;
           const timeB = b.lastMessageAt || b.createdAt;
@@ -91,8 +90,16 @@ export const ChatListScreen = ({ navigation }: { navigation: any }) => {
 
   const renderItem = ({ item }: { item: Chat }) => {
     const isClient = profile?.role === 'client';
-    const otherUid = isClient ? item.workerUid : item.hirerUid;
-    const otherName = isClient ? item.workerName : item.hirerName;
+    let otherUid = isClient ? item.workerUid : item.hirerUid;
+    let otherName = isClient ? item.workerName : item.hirerName;
+    
+    if (!otherUid) {
+      otherUid = item.id.split('_').find((u: string) => u !== profile?.uid) || 'unknown';
+    }
+    if (!otherName) {
+      otherName = isClient ? 'Worker' : 'Hirer';
+    }
+
     const color = avatarColor(otherUid);
     const timeStr = formatTime(item.lastMessageAt || item.createdAt);
 

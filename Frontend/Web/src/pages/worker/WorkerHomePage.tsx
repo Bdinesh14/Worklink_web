@@ -38,9 +38,7 @@ export const WorkerHomePage: React.FC = () => {
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
-  const [notificationCount, setNotificationCount] = useState(0);
 
 
   useEffect(() => {
@@ -98,21 +96,7 @@ export const WorkerHomePage: React.FC = () => {
     return () => unsub();
   }, [profile?.uid]);
 
-  // Track unread notifications
-  useEffect(() => {
-    if (!profile?.uid) return;
-    const unsub = onValue(ref(database, 'notifications'), (snap) => {
-      if (snap.exists()) {
-        const pending = Object.values(snap.val()).filter(
-          (n: any) => n.userId === profile.uid && n.status === 'pending'
-        ).length;
-        setNotificationCount(pending);
-      } else {
-        setNotificationCount(0);
-      }
-    });
-    return () => unsub();
-  }, [profile?.uid]);
+
 
 
   const handleSendRequest = async (job: any) => {
@@ -139,9 +123,8 @@ export const WorkerHomePage: React.FC = () => {
   };
 
   const filteredJobs = hirerJobs.filter(job => {
-    const categoryMatch = !selectedCategory || job.category === selectedCategory;
     const searchMatch = !searchQuery || [job.hirerName, job.category, job.title].some(field => field?.toLowerCase().includes(searchQuery.toLowerCase()));
-    return categoryMatch && searchMatch;
+    return searchMatch;
   });
 
   const hour = new Date().getHours();
@@ -162,7 +145,7 @@ export const WorkerHomePage: React.FC = () => {
             onClick={() => navigate('/worker/notifications')}
           >
             <Bell size={22} color="var(--color-text-medium)" />
-            {(pendingCount > 0 || notificationCount > 0) && (
+            {pendingCount > 0 && (
               <span style={{
                 position: 'absolute', top: '2px', right: '2px',
                 backgroundColor: 'var(--color-error)',
@@ -216,17 +199,15 @@ export const WorkerHomePage: React.FC = () => {
       </div>
 
       <div className="section-header">
-        <h2 className="section-title">Categories</h2>
+        <h2 className="section-title">Post by Category</h2>
       </div>
       <div className="categories-scroll">
         {Object.entries(CATEGORY_ICONS).map(([cat, icon]) => {
-          const isActive = selectedCategory === cat;
           return (
             <div 
               key={cat} 
-              className={`category-chip row-chip ${isActive ? 'active-chip' : ''}`}
-              onClick={() => setSelectedCategory(isActive ? null : cat)}
-              style={isActive ? { borderColor: 'var(--color-success)', backgroundColor: 'rgba(16, 185, 129, 0.15)', borderWidth: '2px' } : {}}
+              className="category-chip row-chip"
+              onClick={() => navigate(`/worker/post-availability?cat=${encodeURIComponent(cat)}`)}
             >
               {icon}
               <span>{cat}</span>

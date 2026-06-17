@@ -101,6 +101,7 @@ export const ManageReportsScreen = ({ navigation }: { navigation: any }) => {
           // Delete request and chat
           await remove(ref(database, `requests/${itemId}`));
           await remove(ref(database, `chats/${chatId}`));
+          await remove(ref(database, `messages/${chatId}`));
         } else {
           await remove(ref(database, `requests/${itemId}`));
         }
@@ -132,6 +133,7 @@ export const ManageReportsScreen = ({ navigation }: { navigation: any }) => {
 
         for (const chatId of relatedChatIds) {
           await remove(ref(database, `chats/${chatId}`));
+          await remove(ref(database, `messages/${chatId}`));
         }
 
         await remove(ref(database, `${dbPath}/${itemId}`));
@@ -249,9 +251,6 @@ export const ManageReportsScreen = ({ navigation }: { navigation: any }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ArrowLeft size={22} color={COLORS.textDark} />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Manage Reports</Text>
         <View style={{ width: 40 }} />
       </View>

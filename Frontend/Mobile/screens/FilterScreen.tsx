@@ -36,14 +36,7 @@ export const FilterScreen = ({ route, navigation }: { route: any; navigation: an
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          activeOpacity={0.7}
-        >
-          <ArrowLeft size={22} color={COLORS.textDark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Filter Options</Text>
+        <Text style={styles.headerTitle}>Location Filter</Text>
         {location ? (
           <TouchableOpacity onPress={handleClear} style={styles.clearHeaderBtn}>
             <Trash2 size={16} color={COLORS.error} />

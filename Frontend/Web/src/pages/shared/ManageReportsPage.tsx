@@ -154,6 +154,7 @@ export const ManageReportsPage: React.FC = () => {
           // Delete request and chat
           await remove(ref(database, `requests/${itemId}`));
           await remove(ref(database, `chats/${chatId}`));
+          await remove(ref(database, `messages/${chatId}`));
         } else {
           await remove(ref(database, `requests/${itemId}`));
         }
@@ -185,6 +186,7 @@ export const ManageReportsPage: React.FC = () => {
 
         for (const chatId of relatedChatIds) {
           await remove(ref(database, `chats/${chatId}`));
+          await remove(ref(database, `messages/${chatId}`));
         }
 
         await remove(ref(database, `${dbPath}/${itemId}`));
@@ -223,10 +225,7 @@ export const ManageReportsPage: React.FC = () => {
 
       <header className="home-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="icon-btn" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} color="var(--color-text-medium)" />
-          </button>
-          <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Manage Reports</h1>
+            <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Management Logs</h1>
         </div>
       </header>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { push, set, ref } from 'firebase/database';
 import { database } from '../../services/firebase';
@@ -20,9 +20,12 @@ const AVAILABILITY_LEVELS = [
 export const PostAvailabilityPage: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const preselectedCategory = queryParams.get('cat') || '';
 
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(preselectedCategory);
   const [description, setDescription] = useState('');
   const [jobLocation, setJobLocation] = useState('');
   const [rateType, setRateType] = useState<'fixed' | 'hourly'>('hourly');
@@ -82,10 +85,7 @@ export const PostAvailabilityPage: React.FC = () => {
       <Toast message={toastMsg} visible={!!toastMsg} onDismiss={() => setToastMsg(null)} type="success" />
 
       <header className="home-header">
-        <button className="icon-btn" onClick={() => navigate(-1)}>
-          <ArrowLeft size={22} color="var(--color-text-medium)" />
-        </button>
-        <h2 className="section-title">Post Availability</h2>
+          <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>Post Availability</h1>
         <div style={{ width: 40 }} />
       </header>
 

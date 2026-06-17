@@ -83,9 +83,6 @@ export const MyJobRequestsPage: React.FC = () => {
 
       <header className="home-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="icon-btn" onClick={() => navigate(-1)}>
-            <ArrowLeft size={22} color="var(--color-text-medium)" />
-          </button>
           <h1 className="name-title" style={{ fontSize: '22px', margin: 0 }}>My Job Applications</h1>
         </div>
         <div style={{ width: 40 }} />

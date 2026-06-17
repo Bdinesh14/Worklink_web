@@ -45,9 +45,7 @@ export const HirerHomePage: React.FC = () => {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [locationFilter] = useState(''); // Could come from query params
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
-  const [notificationCount, setNotificationCount] = useState(0);
 
 
   useEffect(() => {
@@ -101,19 +99,7 @@ export const HirerHomePage: React.FC = () => {
       }
     });
 
-    // Track unread notifications
-    const unsubActualNotifs = onValue(ref(database, 'notifications'), (snap) => {
-      if (snap.exists()) {
-        const pending = Object.values(snap.val()).filter(
-          (n: any) => n.userId === profile.uid && n.status === 'pending'
-        ).length;
-        setNotificationCount(pending);
-      } else {
-        setNotificationCount(0);
-      }
-    });
-
-    return () => { unsubJobs(); unsubPosts(); unsubReqs(); unsubNotifs(); unsubActualNotifs(); };
+    return () => { unsubJobs(); unsubPosts(); unsubReqs(); unsubNotifs(); };
   }, [profile?.uid]);
 
   const handleSendRequest = async (wp: WorkerPost) => {
@@ -140,10 +126,9 @@ export const HirerHomePage: React.FC = () => {
   };
 
   const filteredPosts = workerPosts.filter(wp => {
-    const categoryMatch = !selectedCategory || wp.category === selectedCategory;
     const searchMatch = !searchQuery || [wp.workerName, wp.category, wp.title].some(field => field?.toLowerCase().includes(searchQuery.toLowerCase()));
     const locMatch = !locationFilter || wp.location?.toLowerCase().includes(locationFilter.toLowerCase());
-    return categoryMatch && searchMatch && locMatch;
+    return searchMatch && locMatch;
   });
 
   const hour = new Date().getHours();
@@ -164,7 +149,7 @@ export const HirerHomePage: React.FC = () => {
             onClick={() => navigate('/hirer/notifications')}
           >
             <Bell size={22} color="var(--color-text-medium)" />
-            {(pendingCount > 0 || notificationCount > 0) && (
+            {pendingCount > 0 && (
               <span style={{
                 position: 'absolute', top: '2px', right: '2px',
                 backgroundColor: 'var(--color-error)',
@@ -224,13 +209,11 @@ export const HirerHomePage: React.FC = () => {
       </div>
       <div className="categories-scroll">
         {Object.entries(CATEGORY_ICONS).map(([cat, icon]) => {
-          const isActive = selectedCategory === cat;
           return (
             <div
               key={cat}
-              className={`category-chip ${isActive ? 'active-chip' : ''}`}
-              onClick={() => setSelectedCategory(isActive ? null : cat)}
-              style={isActive ? { borderColor: 'var(--color-primary)', backgroundColor: 'var(--color-primary-light)', borderWidth: '2px' } : {}}
+              className="category-chip"
+              onClick={() => navigate(`/hirer/post-job?cat=${encodeURIComponent(cat)}`)}
             >
               {icon}
               <span>{cat}</span>

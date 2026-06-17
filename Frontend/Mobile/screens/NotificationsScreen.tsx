@@ -109,9 +109,6 @@ export const NotificationsScreen = ({ navigation }: { navigation: any }) => {
       
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <ArrowLeft size={22} color={COLORS.textDark} />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>
           {pendingCount > 0 && (
             <View style={[styles.badgeContainer, { backgroundColor: accentColor }]}>

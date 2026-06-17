@@ -11,6 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, SPACING, SHADOWS } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { database } from '../../services/firebase';
@@ -122,9 +123,11 @@ export const WorkerApplicationsScreen = ({ navigation }: { navigation: any }) =>
     }
   }, [profile?.uid]);
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [fetchAll])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
