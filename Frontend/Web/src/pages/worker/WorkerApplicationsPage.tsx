@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Check, X, Briefcase, Phone, MessageSquare } from 'lucide-react';
+import { FileText, Check, X, Briefcase, Phone, MessageSquare } from 'lucide-react';
 import { ref, onValue, update, set } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';

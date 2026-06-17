@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Briefcase, MapPin, Plus, Check, Lock, Hammer, Droplets, Zap, Paintbrush, Wrench } from 'lucide-react';
+import { Briefcase, MapPin, Plus, Check, Lock, Hammer, Droplets, Zap, Paintbrush, Wrench } from 'lucide-react';
 import { ref, onValue, update } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';

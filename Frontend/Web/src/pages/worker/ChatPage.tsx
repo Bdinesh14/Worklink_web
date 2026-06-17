@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Trash2 } from 'lucide-react';
+import { useParams, useLocation } from 'react-router-dom';
+import { Send, Trash2 } from 'lucide-react';
 import { ref, onValue, push, set, remove, update } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -9,7 +9,7 @@ import '../chat.css';
 export const ChatPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { profile } = useAuth();
 
   const queryParams = new URLSearchParams(location.search);

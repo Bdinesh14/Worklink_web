@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Briefcase, Check, Lock, Calendar, MessageSquare, Hammer, Droplets, Zap, Paintbrush, Wrench, Phone } from 'lucide-react';
+import { Briefcase, Check, Lock, Calendar, MessageSquare, Hammer, Droplets, Zap, Paintbrush, Wrench, Phone } from 'lucide-react';
 import { ref, onValue, update } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Briefcase, Trash2, MapPin, Calendar, AlertTriangle, Hammer, Droplets, Zap, Paintbrush, Wrench, X, User } from 'lucide-react';
+// import { useNavigate } from 'react-router-dom';
+import { Briefcase, Trash2, MapPin, Calendar, AlertTriangle, Hammer, Droplets, Zap, Paintbrush, Wrench, X, User } from 'lucide-react';
 import { ref, onValue, remove, get } from 'firebase/database';
 import { database } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -77,7 +77,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ title, message, onConfirm
 
 export const ManageReportsPage: React.FC = () => {
   const { profile } = useAuth();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   
   const [posts, setPosts] = useState<any[]>([]);
   const [acceptedRequests, setAcceptedRequests] = useState<any[]>([]);
