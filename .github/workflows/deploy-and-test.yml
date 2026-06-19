@@ -178,27 +178,35 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: 🌐 Install Google Chrome
+      - name: 🌐 Install Google Chrome (latest stable)
         run: |
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
           sudo sh -c 'echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
           sudo apt-get update -qq
           sudo apt-get install -y google-chrome-stable
-          echo "✅ Chrome: $(google-chrome --version)"
+          CHROME_VERSION=$(google-chrome --version | grep -oP '[\d.]+')
+          echo "✅ Chrome version: $CHROME_VERSION"
+          echo "CHROME_VERSION=$CHROME_VERSION" >> $GITHUB_ENV
 
       - name: 📦 Install E2E test dependencies
         working-directory: Frontend/Web/e2e
-        run: npm ci
+        run: |
+          # Use npm install (not ci) so Selenium Manager resolves correct chromedriver
+          npm install
+          echo "✅ Node modules installed — Selenium Manager will auto-download ChromeDriver"
 
       - name: 🧪 Run Selenium E2E Tests against Live URL (470+ test cases)
         working-directory: Frontend/Web/e2e
-        run: npm test -- --testTimeout=120000
+        run: npm test
         continue-on-error: true
         env:
           BASE_URL: ${{ needs.verify-deployment.outputs.live_url }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
+          SE_MANAGER_LOGGER_LEVEL: INFO
+          SE_AVOID_BROWSER_DOWNLOAD: false
+          JAVA_HOME: ''
 
       - name: 📊 Generate Excel Reports (4 workbooks)
         working-directory: Frontend/Web/e2e
