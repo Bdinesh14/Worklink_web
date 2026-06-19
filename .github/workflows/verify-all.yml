@@ -49,17 +49,22 @@ jobs:
 
       - name: 📦 Install Web E2E dependencies
         working-directory: Frontend/Web/e2e
-        run: npm ci
+        run: npm install
 
       - name: 🧪 Run Website E2E Tests (Selenium)
         working-directory: Frontend/Web/e2e
         id: selenium
         run: |
-          mkdir -p "Test Results/Screenshots" "Test Results/Logs" "Test Results/Summary" "Test Results/Excel"
-          npm test -- --json --outputFile=jest-results.json 2>&1 || true
+          mkdir -p "Test Results/Screenshots" "Test Results/Logs" "Test Results/Summary" "Test Results/Excel" "Test Results/JSON"
+          npm test 2>&1 || true
           echo "done=true" >> $GITHUB_OUTPUT
         env:
           BASE_URL: https://bdinesh14.github.io/Worklink_web/
+          SE_MANAGER_LOGGER_LEVEL: INFO
+          SE_AVOID_BROWSER_DOWNLOAD: false
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         continue-on-error: true
 
       - name: 📊 Parse Selenium Results
