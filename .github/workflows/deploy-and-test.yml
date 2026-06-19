@@ -1,10 +1,12 @@
-name: 🚀 Deploy to GitHub Pages + Selenium E2E Tests
+name: 🚀 Deploy to GitHub Pages + 470+ Selenium E2E Tests
 
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    - cron: '0 0 * * *'    # Daily at midnight UTC
   workflow_dispatch:
     inputs:
       run_tests_only:
@@ -188,26 +190,35 @@ jobs:
         working-directory: Frontend/Web/e2e
         run: npm ci
 
-      - name: 🧪 Run Selenium E2E Tests against Live URL
+      - name: 🧪 Run Selenium E2E Tests against Live URL (470+ test cases)
         working-directory: Frontend/Web/e2e
-        run: npm test
+        run: npm test -- --testTimeout=120000
         continue-on-error: true
         env:
           BASE_URL: ${{ needs.verify-deployment.outputs.live_url }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
 
-      - name: 📊 Generate Excel + Markdown Reports
+      - name: 📊 Generate Excel Reports (4 workbooks)
         working-directory: Frontend/Web/e2e
         if: always()
         run: node utils/reportGenerator.js
         env:
           BASE_URL: ${{ needs.verify-deployment.outputs.live_url }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        continue-on-error: true
 
-      - name: 📤 Upload Test Artifacts
+      - name: 📤 Upload All Test Artifacts (Excel + HTML + Screenshots + Logs)
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Selenium-Test-Results-${{ github.run_number }}
-          path: Frontend/Web/e2e/Test Results/
+          path: |
+            Frontend/Web/e2e/Test Results/
+            Frontend/Web/e2e/jest-results.json
           retention-days: 30
 
       - name: 📋 Publish GitHub Actions Step Summary

@@ -1,25 +1,22 @@
 module.exports = {
   testEnvironment: "node",
-  testTimeout: 60000,
-  runInBand: true,           // Run tests serially — required for Selenium session sharing
+  testTimeout: 120000,       // 2 minutes per test (Selenium on live URL)
+  runInBand: true,           // Run tests serially — required for Selenium session
   testMatch: ["**/tests/**/*.spec.js"],
   reporters: [
     "default",
     [
       "jest-html-reporter",
       {
-        pageTitle: "WorkLink Live GitHub Pages E2E Test Report",
+        pageTitle: "WorkLink E2E Test Report — 470+ Test Cases",
         outputPath: "Test Results/HTML/execution-report.html",
         includeFailureMsg: true,
         includeSuiteFailure: true,
-        includeConsoleLog: true,
-        theme: "darkTheme"
+        includeConsoleLog: false,
+        theme: "darkTheme",
+        sort: "status"
       }
     ]
   ],
-  // Write Jest JSON results so reportGenerator.js can build Excel + summary.md
-  testResultsProcessor: undefined,
-  setupFilesAfterFramework: [],
   setupFilesAfterEnv: ["./jest.setup.js"]
 };
-
