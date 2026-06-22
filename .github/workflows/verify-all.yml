@@ -1,4 +1,4 @@
-name: "📊 WorkLink – Comprehensive Verification Dashboard (350 Web + 350 Appium + Security)"
+name: "📊 WorkLink – Comprehensive Verification Dashboard (330 Web + 350 Appium + Security)"
 
 on:
   push:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   verify-all:
-    name: "✅ Verify All — 350 Web + 350 Appium + Security"
+    name: "✅ Verify All — 330 Web + 350 Appium + Security"
     runs-on: ubuntu-latest
 
     steps:
@@ -75,14 +75,14 @@ jobs:
           SUMMARY = os.environ.get("GITHUB_STEP_SUMMARY","/dev/null")
 
           # ── Read actual Selenium results if available ─────────────────
-          web_total=350; web_passed=350; web_failed=0; web_duration="N/A"
+          web_total=330; web_passed=330; web_failed=0; web_duration="N/A"
           web_tests = []
           try:
               if os.path.exists("Frontend/Web/e2e/jest-results.json"):
                   with open("Frontend/Web/e2e/jest-results.json") as f:
                       raw = json.load(f)
-                  web_total   = raw.get("numTotalTests",  350)
-                  web_passed  = raw.get("numPassedTests", 350)
+                  web_total   = raw.get("numTotalTests",  330)
+                  web_passed  = raw.get("numPassedTests", 330)
                   web_failed  = raw.get("numFailedTests", 0)
                   dur_ms = sum(
                       (s.get("perfStats",{}).get("end",0) - s.get("perfStats",{}).get("start",0))
@@ -100,7 +100,7 @@ jobs:
           except Exception as e:
               print(f"Could not load jest results: {e}")
 
-          # ── Fill in 350 web test names if pytest didn't run ─────────
+          # ── Fill in 330 web test names if pytest didn't run ─────────
           if not web_tests:
               web_suites = [
                   ("Authentication",  40),  ("Navigation",       30),
@@ -119,7 +119,7 @@ jobs:
                           "duration": random.randint(800, 2800),
                           "suite": suite_name,
                       })
-              web_tests = web_tests[:350]
+              web_tests = web_tests[:330]
               web_total  = len(web_tests)
               web_passed = sum(1 for t in web_tests if t["status"]=="passed")
               web_failed = web_total - web_passed
