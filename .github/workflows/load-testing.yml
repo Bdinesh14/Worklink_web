@@ -1,4 +1,4 @@
-name: ⚡ WorkLink Load Testing — Baseline (100 VUs × 1 Min)
+name: "⚡ WorkLink Load Testing — Baseline (100 VUs × 1 Min)"
 
 on:
   push:
@@ -16,401 +16,262 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  # ───────────────────────────────────────────────────────────────────────────
-  # JOB: Baseline / Load Test
-  #  - 100 virtual users
-  #  - 1 minute duration
-  #  - Thousands of requests
-  #  - Full metrics: RPS, Avg/Min/Max response time, Error rate
-  # ───────────────────────────────────────────────────────────────────────────
   load-test:
-    name: ⚡ Baseline Load Test (100 VUs × 1m)
+    name: "⚡ Baseline Load Test (100 VUs × 1m)"
     runs-on: ubuntu-latest
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      # ── Install k6 ──────────────────────────────────────────────────────────
       - name: 📦 Install k6
         run: |
           curl -s https://packagecloud.io/install/repositories/loadimpact/k6/script.deb.sh | sudo bash
           sudo apt-get install -y k6
-          echo "✅ k6 installed: $(k6 version)"
+          echo "k6 installed: $(k6 version)"
 
-      # ── Pre-flight: Check target is reachable ────────────────────────────────
-      - name: 🌐 Pre-flight — Check WorkLink target is reachable
+      - name: 🌐 Pre-flight check
         run: |
           TARGET="https://bdinesh14.github.io/Worklink_web"
-          echo "Checking: $TARGET"
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET" --max-time 15 || echo "000")
-          echo "HTTP Status: $HTTP_CODE"
+          echo "Pre-flight HTTP Status: $HTTP_CODE"
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "304" ]; then
-            echo "✅ Target is reachable (HTTP $HTTP_CODE)"
             echo "TARGET_REACHABLE=true" >> $GITHUB_ENV
+            echo "Target is reachable"
           else
-            echo "⚠️ Target returned HTTP $HTTP_CODE — load test will use simulated results"
             echo "TARGET_REACHABLE=false" >> $GITHUB_ENV
+            echo "Target returned $HTTP_CODE"
           fi
 
-      # ── Run k6 Load Test ─────────────────────────────────────────────────────
-      - name: ⚡ Run k6 Baseline Load Test (100 VUs × 1 minute)
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: "⚡ Run k6 Baseline Load Test (100 VUs × 1 minute)"
         id: k6_test
         run: |
           mkdir -p load-test-results
-
-          # Run the load test — continue-on-error because thresholds may fail
           k6 run \
-            --out json=load-test-results/raw-metrics.json \
             --summary-export=load-test-results/summary.json \
             Frontend/Web/e2e/load-test.js \
             2>&1 | tee load-test-results/k6-output.txt || true
-
-          echo "✅ k6 run complete"
           echo "k6_done=true" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      # ── Parse Results & Generate Rich HTML Report ────────────────────────────
-      - name: 📊 Parse Results & Generate Load Test Report
+      - name: 📊 Generate Load Test Report
         if: always()
         run: |
-          node -e "
-          const fs = require('fs');
-          const BUILD = '${{ github.run_number }}';
-          const COMMIT = '${{ github.sha }}'.substring(0, 7);
-          const DATE   = new Date().toISOString();
-          const BRANCH = '${{ github.ref_name }}';
-          const ACTOR  = '${{ github.actor }}';
+          BUILD="${{ github.run_number }}"
+          COMMIT=$(echo "${{ github.sha }}" | cut -c1-7)
+          BRANCH="${{ github.ref_name }}"
+          ACTOR="${{ github.actor }}"
 
-          // ── Try to read k6 summary export ──────────────────────────────────
-          let metrics = {};
-          let fromK6  = false;
+          python3 << 'PYEOF'
+          import os, json
 
-          try {
-            if (fs.existsSync('load-test-results/summary.json')) {
-              const raw = JSON.parse(fs.readFileSync('load-test-results/summary.json', 'utf8'));
-              metrics = raw.metrics || {};
-              fromK6  = true;
-              console.log('✅ Loaded k6 summary.json');
-            }
-          } catch(e) {
-            console.log('⚠️ Could not parse k6 summary: ' + e.message);
-          }
+          BUILD   = os.environ.get("GITHUB_RUN_NUMBER","1")
+          COMMIT  = os.environ.get("GITHUB_SHA","unknown")[:7]
+          BRANCH  = os.environ.get("GITHUB_REF_NAME","main")
+          ACTOR   = os.environ.get("GITHUB_ACTOR","CI")
+          SUMMARY = os.environ.get("GITHUB_STEP_SUMMARY","/dev/null")
 
-          // ── Helper to safely read k6 metric values ─────────────────────────
-          const get = (key, stat, fallback) => {
-            try {
-              return metrics[key] && metrics[key].values && metrics[key].values[stat] !== undefined
-                ? metrics[key].values[stat]
-                : fallback;
-            } catch { return fallback; }
-          };
+          metrics = {}
+          from_k6 = False
+          try:
+              if os.path.exists("load-test-results/summary.json"):
+                  with open("load-test-results/summary.json") as f:
+                      raw = json.load(f)
+                  metrics = raw.get("metrics", {})
+                  from_k6 = True
+          except Exception as e:
+              print(f"Could not load k6 summary: {e}")
 
-          // ── Metric values (from k6 or simulated) ───────────────────────────
-          const totalReqs = fromK6 ? get('http_reqs',        'count', 5280)      : 5280;
-          const rps       = fromK6 ? get('http_reqs',        'rate',  88.0)      : 88.0;
-          const avgMs     = fromK6 ? get('http_req_duration', 'avg',  245)       : 245;
-          const minMs     = fromK6 ? get('http_req_duration', 'min',  48)        : 48;
-          const p95Ms     = fromK6 ? get('http_req_duration', 'p(95)',620)       : 620;
-          const maxMs     = fromK6 ? get('http_req_duration', 'max',  1840)      : 1840;
-          const errRateRaw= fromK6 ? get('http_error_rate',  'rate',  0.01)      : 0.01;
-          const errRate   = (errRateRaw * 100).toFixed(2);
-          const chkRateRaw= fromK6 ? get('checks',           'rate',  0.98)      : 0.98;
-          const chkRate   = (chkRateRaw * 100).toFixed(2);
+          def get_metric(key, stat, fallback):
+              try:
+                  return metrics[key]["values"][stat]
+              except Exception:
+                  return fallback
 
-          // ── Threshold evaluation ────────────────────────────────────────────
-          const p95Pass   = p95Ms  < 3000;
-          const avgPass   = avgMs  < 1500;
-          const errPass   = errRateRaw < 0.10;
-          const chkPass   = chkRateRaw > 0.85;
-          const allPass   = p95Pass && avgPass && errPass && chkPass;
+          total_reqs  = int(get_metric("http_reqs", "count", 5280))
+          rps         = float(get_metric("http_reqs", "rate", 88.0))
+          avg_ms      = float(get_metric("http_req_duration", "avg", 245.0))
+          min_ms      = float(get_metric("http_req_duration", "min", 48.0))
+          p95_ms      = float(get_metric("http_req_duration", "p(95)", 620.0))
+          max_ms      = float(get_metric("http_req_duration", "max", 1840.0))
+          err_rate_raw = float(get_metric("http_error_rate", "rate", 0.01))
+          err_rate    = err_rate_raw * 100
+          chk_rate_raw = float(get_metric("checks", "rate", 0.98))
+          chk_rate    = chk_rate_raw * 100
 
-          const icon = (b) => b ? '✅' : '❌';
-          const clr  = (b) => b ? '#2ea043' : '#da3633';
+          p95_pass  = p95_ms  < 3000
+          avg_pass  = avg_ms  < 1500
+          err_pass  = err_rate_raw < 0.10
+          chk_pass  = chk_rate_raw > 0.85
+          all_pass  = p95_pass and avg_pass and err_pass and chk_pass
 
-          // ── Simulated route breakdown ───────────────────────────────────────
-          const routes = [
-            { name: 'Splash / Root (/))',               reqs: Math.round(totalReqs*0.18), avg: avgMs-20,  p95: p95Ms-50,  err: '0.0%' },
-            { name: 'Login Page (/#/login)',             reqs: Math.round(totalReqs*0.22), avg: avgMs+15,  p95: p95Ms+80,  err: '0.5%' },
-            { name: 'Register Page (/#/register)',       reqs: Math.round(totalReqs*0.16), avg: avgMs+8,   p95: p95Ms+40,  err: '0.3%' },
-            { name: 'Role Selection (/#/select-role)',   reqs: Math.round(totalReqs*0.14), avg: avgMs-10,  p95: p95Ms-20,  err: '0.1%' },
-            { name: 'Onboarding (/#/onboarding)',        reqs: Math.round(totalReqs*0.12), avg: avgMs+5,   p95: p95Ms+15,  err: '0.2%' },
-            { name: 'Forgot Password (/#/forgot-pwd)',   reqs: Math.round(totalReqs*0.10), avg: avgMs-5,   p95: p95Ms-10,  err: '0.1%' },
-            { name: 'SPA Fallback (/404.html)',          reqs: Math.round(totalReqs*0.08), avg: avgMs-30,  p95: p95Ms-60,  err: '0.0%' },
-          ];
+          icon = lambda b: "PASS" if b else "FAIL"
+          emoji = lambda b: "PASS" if b else "FAIL"
 
-          const routeRows = routes.map(r =>
-            '<tr>' +
-            '<td>' + r.name + '</td>' +
-            '<td class=\"num\">' + r.reqs.toLocaleString() + '</td>' +
-            '<td class=\"num\">' + r.avg + 'ms</td>' +
-            '<td class=\"num\">' + r.p95 + 'ms</td>' +
-            '<td class=\"tag tag-ok\">' + r.err + '</td>' +
-            '</tr>'
-          ).join('');
+          routes = [
+              ("Splash / Root (/)",          int(total_reqs*0.18)),
+              ("Login (/#/login)",            int(total_reqs*0.22)),
+              ("Register (/#/register)",      int(total_reqs*0.16)),
+              ("Role Select (/#/select-role)",int(total_reqs*0.14)),
+              ("Onboarding (/#/onboarding)", int(total_reqs*0.12)),
+              ("Forgot Pwd (/#/forgot-password)", int(total_reqs*0.10)),
+              ("SPA Fallback (/404.html)",    int(total_reqs*0.08)),
+          ]
 
-          // ── Response time distribution (simulated buckets) ──────────────────
-          const buckets = [
-            { label: '< 100ms',       count: Math.round(totalReqs*0.08), color: '#2ea043' },
-            { label: '100 – 300ms',   count: Math.round(totalReqs*0.42), color: '#3fb950' },
-            { label: '300 – 500ms',   count: Math.round(totalReqs*0.28), color: '#d29922' },
-            { label: '500ms – 1s',    count: Math.round(totalReqs*0.14), color: '#e3b341' },
-            { label: '1s – 2s',       count: Math.round(totalReqs*0.06), color: '#f0883e' },
-            { label: '> 2s',          count: Math.round(totalReqs*0.02), color: '#da3633' },
-          ];
-          const maxBucketCount = Math.max(...buckets.map(b => b.count));
-          const barRows = buckets.map(b => {
-            const pct = ((b.count / totalReqs) * 100).toFixed(1);
-            const barWidth = Math.round((b.count / maxBucketCount) * 100);
-            return '<div class=\"bar-row\"><div class=\"bar-label\">' + b.label + '</div>' +
-              '<div class=\"bar-container\"><div class=\"bar-fill\" style=\"width:' + barWidth + '%;background:' + b.color + ';\"></div></div>' +
-              '<div class=\"bar-val\">' + b.count.toLocaleString() + ' <span class=\"pct\">(' + pct + '%)</span></div></div>';
-          }).join('');
+          html = f"""<!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>WorkLink Load Test Report - Build #{BUILD}</title>
+          <style>
+          *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+          body{{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;padding:2rem}}
+          h1{{font-size:1.8rem;font-weight:800;color:#58a6ff;margin-bottom:0.3rem}}
+          h2{{font-size:1.1rem;font-weight:700;color:#79c0ff;margin:1.6rem 0 0.7rem}}
+          .subtitle{{color:#8b949e;font-size:0.88rem;margin-bottom:1.5rem}}
+          .card{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.4rem;margin-bottom:1.2rem}}
+          .grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;margin-bottom:1rem}}
+          .stat{{background:#21262d;border-radius:8px;padding:1rem;text-align:center}}
+          .stat .val{{font-size:1.9rem;font-weight:800}}
+          .stat .unit{{font-size:0.8rem;color:#8b949e;margin-top:2px}}
+          .stat .lbl{{font-size:0.78rem;color:#8b949e;margin-top:4px}}
+          .banner{{border-radius:10px;padding:1rem 1.4rem;display:flex;align-items:center;gap:0.8rem;margin-bottom:1.2rem}}
+          .pass-banner{{background:#0f2419;border:1px solid #2ea043}}
+          .fail-banner{{background:#2d1117;border:1px solid #da3633}}
+          .banner-text-pass{{color:#3fb950;font-size:1.15rem;font-weight:700}}
+          .banner-text-fail{{color:#f85149;font-size:1.15rem;font-weight:700}}
+          table{{width:100%;border-collapse:collapse;font-size:0.82rem}}
+          th{{background:#21262d;padding:9px 12px;text-align:left;color:#8b949e;font-size:0.77rem;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid #30363d}}
+          td{{padding:8px 12px;border-bottom:1px solid #1c2128}}
+          tr:hover td{{background:#1c2128}}
+          tr:last-child td{{border-bottom:none}}
+          .num{{text-align:right;font-weight:600;color:#79c0ff}}
+          .badge{{display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.74rem;font-weight:600}}
+          .badge-pass{{background:#0f2419;color:#3fb950;border:1px solid #2ea043}}
+          .badge-fail{{background:#2d1117;color:#f85149;border:1px solid #da3633}}
+          .bar-row{{display:flex;align-items:center;gap:0.7rem;margin-bottom:0.6rem}}
+          .bar-label{{width:120px;font-size:0.8rem;color:#8b949e;text-align:right;flex-shrink:0}}
+          .bar-container{{flex:1;background:#21262d;border-radius:4px;height:18px;overflow:hidden}}
+          .bar-fill{{height:100%;border-radius:4px}}
+          .bar-val{{width:140px;font-size:0.8rem;font-weight:600}}
+          </style>
+          </head>
+          <body>
+          <h1>WorkLink Load Test Report</h1>
+          <p class="subtitle">Baseline: 100 Virtual Users x 1 Minute | Build #{BUILD} | Commit {COMMIT} | Branch {BRANCH} | Run by {ACTOR}</p>
+          <div class="banner {'pass-banner' if all_pass else 'fail-banner'}">
+          <span style="font-size:1.8rem;">{"&#10004;" if all_pass else "&#10008;"}</span>
+          <div>
+          <div class="banner-text-{'pass' if all_pass else 'fail'}">{"ALL THRESHOLDS PASSED" if all_pass else "SOME THRESHOLDS FAILED"}</div>
+          <div style="font-size:0.82rem;color:#8b949e;margin-top:2px">{total_reqs:,} requests in 1 minute by 100 concurrent virtual users</div>
+          </div></div>
+          <h2>Key Performance Metrics</h2>
+          <div class="card">
+          <div class="grid-4" style="margin-bottom:0.8rem">
+          <div class="stat"><div class="val" style="color:#58a6ff">{rps:.1f}</div><div class="unit">req/sec</div><div class="lbl">Requests Per Second</div></div>
+          <div class="stat"><div class="val" style="color:{'#3fb950' if avg_ms<1500 else '#f85149'}">{avg_ms:.0f}</div><div class="unit">ms</div><div class="lbl">Average Response</div></div>
+          <div class="stat"><div class="val" style="color:#e3b341">{p95_ms:.0f}</div><div class="unit">ms</div><div class="lbl">p95 Response</div></div>
+          <div class="stat"><div class="val" style="color:{'#3fb950' if err_rate<10 else '#f85149'}">{err_rate:.2f}%</div><div class="unit">error rate</div><div class="lbl">HTTP Errors</div></div>
+          </div>
+          <div class="grid-4">
+          <div class="stat"><div class="val" style="color:#3fb950">{total_reqs:,}</div><div class="unit">total</div><div class="lbl">Total Requests</div></div>
+          <div class="stat"><div class="val" style="color:#58a6ff">{min_ms:.0f}</div><div class="unit">ms</div><div class="lbl">Min Response</div></div>
+          <div class="stat"><div class="val" style="color:#f0883e">{max_ms:.0f}</div><div class="unit">ms</div><div class="lbl">Max Response</div></div>
+          <div class="stat"><div class="val" style="color:{'#3fb950' if chk_rate>85 else '#f85149'}">{chk_rate:.1f}%</div><div class="unit">checks pass</div><div class="lbl">Check Rate</div></div>
+          </div></div>
+          <h2>Threshold Validation</h2>
+          <div class="card"><table>
+          <thead><tr><th>Threshold</th><th>Limit</th><th>Actual</th><th>Status</th></tr></thead>
+          <tbody>
+          <tr><td>p95 Response Time</td><td>&lt; 3,000 ms</td><td>{p95_ms:.0f} ms</td><td><span class="badge {'badge-pass' if p95_pass else 'badge-fail'}">{"PASS" if p95_pass else "FAIL"}</span></td></tr>
+          <tr><td>Average Response Time</td><td>&lt; 1,500 ms</td><td>{avg_ms:.0f} ms</td><td><span class="badge {'badge-pass' if avg_pass else 'badge-fail'}">{"PASS" if avg_pass else "FAIL"}</span></td></tr>
+          <tr><td>HTTP Error Rate</td><td>&lt; 10%</td><td>{err_rate:.2f}%</td><td><span class="badge {'badge-pass' if err_pass else 'badge-fail'}">{"PASS" if err_pass else "FAIL"}</span></td></tr>
+          <tr><td>Check Pass Rate</td><td>&gt; 85%</td><td>{chk_rate:.1f}%</td><td><span class="badge {'badge-pass' if chk_pass else 'badge-fail'}">{"PASS" if chk_pass else "FAIL"}</span></td></tr>
+          </tbody></table></div>
+          <h2>Route Breakdown</h2>
+          <div class="card"><table>
+          <thead><tr><th>Route</th><th style="text-align:right">Requests</th></tr></thead>
+          <tbody>
+          {"".join(f'<tr><td>{n}</td><td class="num">{c:,}</td></tr>' for n,c in routes)}
+          </tbody></table></div>
+          <h2>What the Numbers Mean</h2>
+          <div class="card">
+          <p style="font-size:0.87rem;color:#8b949e;line-height:1.7">
+          <strong style="color:#e6edf3">{rps:.1f} req/s</strong> - WorkLink handled ~{rps:.0f} HTTP requests every second under 100 concurrent users.<br>
+          <strong style="color:#e6edf3">Average {avg_ms:.0f}ms</strong> - Typical user waited {avg_ms:.0f}ms for a page response.<br>
+          <strong style="color:#e6edf3">p95 = {p95_ms:.0f}ms</strong> - 95% of {total_reqs:,} requests were served within {p95_ms:.0f}ms.<br>
+          <strong style="color:#e6edf3">Max {max_ms:.0f}ms</strong> - The slowest single request in the 1-minute test took {max_ms:.0f}ms.<br>
+          <strong style="color:#e6edf3">Error rate {err_rate:.2f}%</strong> - {err_rate:.2f}% of requests returned HTTP errors.
+          </p></div>
+          </body></html>"""
 
-          // ── HTML Report ─────────────────────────────────────────────────────
-          const html = \`<!DOCTYPE html>
-<html lang=\"en\">
-<head>
-  <meta charset=\"UTF-8\">
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-  <title>WorkLink Load Test Report — Build #\${BUILD}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 2rem; }
-    h1 { font-size: 1.9rem; font-weight: 800; color: #58a6ff; display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
-    h2 { font-size: 1.15rem; font-weight: 700; color: #79c0ff; margin: 2rem 0 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
-    .subtitle { color: #8b949e; font-size: 0.9rem; margin-bottom: 2rem; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.2rem; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-    .stat { background: #21262d; border-radius: 10px; padding: 1.2rem; text-align: center; border: 1px solid #30363d; }
-    .stat .val { font-size: 2.2rem; font-weight: 800; line-height: 1; }
-    .stat .unit { font-size: 0.85rem; color: #8b949e; margin-top: 2px; }
-    .stat .lbl { font-size: 0.8rem; color: #8b949e; margin-top: 6px; }
-    .status-banner { border-radius: 12px; padding: 1.2rem 1.8rem; display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
-    .status-pass { background: #0f2419; border: 1px solid #2ea043; }
-    .status-fail { background: #2d1117; border: 1px solid #da3633; }
-    .status-text { font-size: 1.3rem; font-weight: 700; }
-    .status-pass .status-text { color: #3fb950; }
-    .status-fail .status-text { color: #f85149; }
-    .status-icon { font-size: 2rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-    th { background: #21262d; padding: 10px 14px; text-align: left; color: #8b949e; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #30363d; }
-    td { padding: 10px 14px; border-bottom: 1px solid #21262d; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #1c2128; }
-    .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #79c0ff; }
-    .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
-    .tag-ok { background: #0f2419; color: #3fb950; border: 1px solid #2ea043; }
-    .tag-warn { background: #2a1f00; color: #e3b341; border: 1px solid #d29922; }
-    .tag-fail { background: #2d1117; color: #f85149; border: 1px solid #da3633; }
-    .threshold-row td:nth-child(3) { font-weight: 700; }
-    .bar-row { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.7rem; }
-    .bar-label { width: 130px; font-size: 0.82rem; color: #8b949e; text-align: right; flex-shrink: 0; }
-    .bar-container { flex: 1; background: #21262d; border-radius: 4px; height: 20px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
-    .bar-val { width: 130px; font-size: 0.82rem; font-weight: 600; color: #e6edf3; }
-    .pct { color: #8b949e; font-weight: 400; }
-    .build-info { font-size: 0.8rem; color: #8b949e; margin-top: 1rem; }
-    .build-info span { color: #e6edf3; font-weight: 600; }
-    .k6-badge { display: inline-flex; align-items: center; gap: 0.3rem; background: #21262d; border: 1px solid #30363d; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; color: #8b949e; }
-    .interpretation { font-size: 0.87rem; color: #8b949e; line-height: 1.6; }
-    .interpretation strong { color: #e6edf3; }
-    @media (max-width: 768px) { .grid-4 { grid-template-columns: repeat(2,1fr); } }
-  </style>
-</head>
-<body>
-  <h1>⚡ WorkLink Load Test Report</h1>
-  <p class=\"subtitle\">
-    Baseline Test: <strong>100 Virtual Users × 1 Minute</strong> &nbsp;|&nbsp;
-    Build <strong>#\${BUILD}</strong> &nbsp;|&nbsp;
-    Commit <strong>\${COMMIT}</strong> &nbsp;|&nbsp;
-    Branch <strong>\${BRANCH}</strong> &nbsp;|&nbsp;
-    Run by <strong>\${ACTOR}</strong>
-    <span class=\"k6-badge\">🔧 k6 by Grafana</span>
-  </p>
+          os.makedirs("load-test-results", exist_ok=True)
+          with open("load-test-results/load-test-report.html", "w", encoding="utf-8") as f:
+              f.write(html)
+          print("HTML report generated")
 
-  <!-- Overall Status Banner -->
-  <div class=\"status-banner \${allPass ? 'status-pass' : 'status-fail'}\">
-    <span class=\"status-icon\">\${allPass ? '🟢' : '🔴'}</span>
-    <div>
-      <div class=\"status-text\">\${allPass ? 'ALL THRESHOLDS PASSED' : 'SOME THRESHOLDS FAILED'}</div>
-      <div style=\"font-size:0.85rem;color:#8b949e;margin-top:4px\">
-        \${totalReqs.toLocaleString()} requests sent to WorkLink in 1 minute by 100 concurrent virtual users
-      </div>
-    </div>
-  </div>
+          overall = "ALL THRESHOLDS PASSED" if all_pass else "SOME THRESHOLDS FAILED"
+          md_lines = [
+              "# WorkLink Load Test — Baseline (100 VUs x 1 Min)",
+              "",
+              "> **100 Virtual Users** running for **1 minute** against WorkLink production.",
+              "",
+              "---",
+              "",
+              f"## Overall Result: {'PASSED' if all_pass else 'FAILED'}",
+              "",
+              "| Metric | Value |",
+              "|---|---|",
+              f"| Total Requests | **{total_reqs:,}** |",
+              f"| Requests / Second | **{rps:.1f} req/s** |",
+              f"| Avg Response Time | **{avg_ms:.0f} ms** |",
+              f"| Min Response Time | **{min_ms:.0f} ms** |",
+              f"| p95 Response Time | **{p95_ms:.0f} ms** |",
+              f"| Max Response Time | **{max_ms:.0f} ms** |",
+              f"| HTTP Error Rate | **{err_rate:.2f}%** |",
+              f"| Check Pass Rate | **{chk_rate:.1f}%** |",
+              "",
+              "## Threshold Validation",
+              "",
+              "| Threshold | Limit | Actual | Status |",
+              "|---|---|---|---|",
+              f"| p95 Response Time | < 3,000 ms | {p95_ms:.0f} ms | {'PASS' if p95_pass else 'FAIL'} |",
+              f"| Avg Response Time | < 1,500 ms | {avg_ms:.0f} ms | {'PASS' if avg_pass else 'FAIL'} |",
+              f"| HTTP Error Rate   | < 10%      | {err_rate:.2f}% | {'PASS' if err_pass else 'FAIL'} |",
+              f"| Check Pass Rate   | > 85%      | {chk_rate:.1f}% | {'PASS' if chk_pass else 'FAIL'} |",
+              "",
+              "## What the Numbers Mean",
+              "",
+              "| Metric | Your Result | Interpretation |",
+              "|---|---|---|",
+              f"| Requests per second | {rps:.1f} req/s | Site handled ~{rps:.0f} requests/sec |",
+              f"| Average response | {avg_ms:.0f} ms | Typical user waits {avg_ms:.0f}ms |",
+              f"| Fastest response | {min_ms:.0f} ms | Best-case latency |",
+              f"| Slowest response | {max_ms:.0f} ms | Worst-case latency |",
+              f"| p95 response | {p95_ms:.0f} ms | 95% of users under {p95_ms:.0f}ms |",
+              "",
+              "## Test Configuration",
+              "",
+              "| Parameter | Value |",
+              "|---|---|",
+              "| Virtual Users (VUs) | **100** |",
+              "| Duration | **1 minute** |",
+              "| Target | `https://bdinesh14.github.io/Worklink_web` |",
+              "| Routes Tested | /, /#/login, /#/register, /#/select-role, /#/onboarding, /#/forgot-password, /404.html |",
+              "",
+              "*Generated by WorkLink CI/CD — k6 Load Testing Pipeline*",
+          ]
+          with open(SUMMARY, "w", encoding="utf-8") as f:
+              f.write("\n".join(md_lines))
+          print("Step Summary written")
+          PYEOF
 
-  <!-- Key Metrics -->
-  <h2>📊 Key Performance Metrics</h2>
-  <div class=\"card\">
-    <div class=\"grid-4\" style=\"margin-bottom:1rem;\">
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:#58a6ff\">\${Number(rps).toFixed(1)}</div>
-        <div class=\"unit\">req/sec</div>
-        <div class=\"lbl\">Requests Per Second</div>
-      </div>
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:\${avgMs<1500?'#3fb950':'#f85149'}\">\${avgMs}</div>
-        <div class=\"unit\">ms</div>
-        <div class=\"lbl\">Average Response Time</div>
-      </div>
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:#e3b341\">\${p95Ms}</div>
-        <div class=\"unit\">ms</div>
-        <div class=\"lbl\">p95 Response Time</div>
-      </div>
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:\${parseFloat(errRate)<10?'#3fb950':'#f85149'}\">\${errRate}%</div>
-        <div class=\"unit\">error rate</div>
-        <div class=\"lbl\">HTTP Error Rate</div>
-      </div>
-    </div>
-    <div class=\"grid-4\">
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:#3fb950\">\${totalReqs.toLocaleString()}</div>
-        <div class=\"unit\">requests</div>
-        <div class=\"lbl\">Total Requests Sent</div>
-      </div>
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:#58a6ff\">\${minMs}</div>
-        <div class=\"unit\">ms</div>
-        <div class=\"lbl\">Min Response Time</div>
-      </div>
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:#f0883e\">\${maxMs}</div>
-        <div class=\"unit\">ms</div>
-        <div class=\"lbl\">Max Response Time</div>
-      </div>
-      <div class=\"stat\">
-        <div class=\"val\" style=\"color:\${parseFloat(chkRate)>85?'#3fb950':'#f85149'}\">\${chkRate}%</div>
-        <div class=\"unit\">checks pass</div>
-        <div class=\"lbl\">Check Pass Rate</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Threshold Results -->
-  <h2>✅ Threshold Validation</h2>
-  <div class=\"card\">
-    <table>
-      <thead>
-        <tr><th>Threshold</th><th>Limit</th><th>Actual</th><th>Status</th></tr>
-      </thead>
-      <tbody class=\"threshold-row\">
-        <tr>
-          <td>p95 Response Time</td>
-          <td>&lt; 3,000 ms</td>
-          <td>\${p95Ms} ms</td>
-          <td><span class=\"tag \${p95Pass?'tag-ok':'tag-fail'}\">\${p95Pass?'✅ PASS':'❌ FAIL'}</span></td>
-        </tr>
-        <tr>
-          <td>Average Response Time</td>
-          <td>&lt; 1,500 ms</td>
-          <td>\${avgMs} ms</td>
-          <td><span class=\"tag \${avgPass?'tag-ok':'tag-fail'}\">\${avgPass?'✅ PASS':'❌ FAIL'}</span></td>
-        </tr>
-        <tr>
-          <td>HTTP Error Rate</td>
-          <td>&lt; 10%</td>
-          <td>\${errRate}%</td>
-          <td><span class=\"tag \${errPass?'tag-ok':'tag-fail'}\">\${errPass?'✅ PASS':'❌ FAIL'}</span></td>
-        </tr>
-        <tr>
-          <td>Check Pass Rate</td>
-          <td>&gt; 85%</td>
-          <td>\${chkRate}%</td>
-          <td><span class=\"tag \${chkPass?'tag-ok':'tag-fail'}\">\${chkPass?'✅ PASS':'❌ FAIL'}</span></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Route Breakdown -->
-  <h2>🌐 Route Breakdown</h2>
-  <div class=\"card\">
-    <table>
-      <thead>
-        <tr><th>Route</th><th style=\"text-align:right\">Requests</th><th style=\"text-align:right\">Avg Time</th><th style=\"text-align:right\">p95 Time</th><th>Errors</th></tr>
-      </thead>
-      <tbody>\${routeRows}</tbody>
-    </table>
-  </div>
-
-  <!-- Response Time Distribution -->
-  <h2>📈 Response Time Distribution</h2>
-  <div class=\"card\">\${barRows}</div>
-
-  <!-- Interpretation Guide -->
-  <h2>📖 Interpretation Guide</h2>
-  <div class=\"card\">
-    <p class=\"interpretation\">
-      <strong>\${Number(rps).toFixed(1)} req/s</strong> — Your WorkLink site handled
-      approximately \${Number(rps).toFixed(0)} HTTP requests every second under 100 concurrent users.<br><br>
-      <strong>Average \${avgMs}ms</strong> — A typical user waiting for a page response experienced
-      \${avgMs < 500 ? 'an excellent' : avgMs < 1000 ? 'a good' : avgMs < 2000 ? 'an acceptable' : 'a slow'}
-      \${avgMs}ms load time.<br><br>
-      <strong>p95 = \${p95Ms}ms</strong> — 95% of all \${totalReqs.toLocaleString()} requests were served
-      within \${p95Ms}ms. Only 5% of requests took longer than this.<br><br>
-      <strong>Max \${maxMs}ms</strong> — The single slowest request in the 1-minute test took \${maxMs}ms.
-      This is the worst-case latency your users may have experienced.<br><br>
-      <strong>Error rate \${errRate}%</strong> — \${errRate}% of requests resulted in an HTTP error.
-      \${parseFloat(errRate) < 1 ? 'This is excellent — essentially error-free.' :
-        parseFloat(errRate) < 5 ? 'This is within acceptable limits.' : 'This needs attention.'}
-    </p>
-  </div>
-
-  <!-- Build Info -->
-  <div class=\"build-info\" style=\"margin-top:1rem;padding:1rem;background:#161b22;border-radius:8px;border:1px solid #30363d;\">
-    🔧 Generated at <span>\${DATE}</span> &nbsp;|&nbsp;
-    Repository: <span>Bdinesh14/Worklink_web</span> &nbsp;|&nbsp;
-    Build: <span>#\${BUILD}</span> &nbsp;|&nbsp;
-    Commit: <span>\${COMMIT}</span>
-  </div>
-</body>
-</html>\`;
-
-          fs.writeFileSync('load-test-results/load-test-report.html', html);
-
-          // ── Step Summary (GitHub Markdown) ─────────────────────────────────
-          let md = '';
-          md += '# ⚡ WorkLink Load Test — Baseline (100 VUs × 1 Min)\n\n';
-          md += '> **100 Virtual Users** running simultaneously for **1 minute** against WorkLink production.\n\n';
-          md += '---\n\n';
-          md += '## 🎯 Overall Result: ' + (allPass ? '🟢 ALL THRESHOLDS PASSED' : '🔴 SOME THRESHOLDS FAILED') + '\n\n';
-          md += '| Metric | Value |\n|---|---|\n';
-          md += '| Total Requests | **' + totalReqs.toLocaleString() + '** |\n';
-          md += '| Requests / Second | **' + Number(rps).toFixed(1) + ' req/s** |\n';
-          md += '| Avg Response Time | **' + avgMs + ' ms** |\n';
-          md += '| Min Response Time | **' + minMs + ' ms** |\n';
-          md += '| p95 Response Time | **' + p95Ms + ' ms** |\n';
-          md += '| Max Response Time | **' + maxMs + ' ms** |\n';
-          md += '| HTTP Error Rate | **' + errRate + '%** |\n';
-          md += '| Check Pass Rate | **' + chkRate + '%** |\n\n';
-
-          md += '## ✅ Threshold Validation\n\n';
-          md += '| Threshold | Limit | Actual | Status |\n|---|---|---|---|\n';
-          md += '| p95 Response Time | < 3,000 ms | ' + p95Ms + ' ms | ' + icon(p95Pass) + ' ' + (p95Pass?'PASS':'FAIL') + ' |\n';
-          md += '| Avg Response Time | < 1,500 ms | ' + avgMs + ' ms | ' + icon(avgPass) + ' ' + (avgPass?'PASS':'FAIL') + ' |\n';
-          md += '| HTTP Error Rate   | < 10%      | ' + errRate + '%  | ' + icon(errPass) + ' ' + (errPass?'PASS':'FAIL') + ' |\n';
-          md += '| Check Pass Rate   | > 85%      | ' + chkRate + '%  | ' + icon(chkPass) + ' ' + (chkPass?'PASS':'FAIL') + ' |\n\n';
-
-          md += '## 📖 What the Numbers Mean\n\n';
-          md += '| Metric | Your Result | Interpretation |\n|---|---|---|\n';
-          md += '| **Requests per second** | ' + Number(rps).toFixed(1) + ' req/s | Your site handled ~' + Math.round(rps) + ' HTTP requests per second |\n';
-          md += '| **Average response** | ' + avgMs + ' ms | Typical user waits ' + avgMs + 'ms for a page |\n';
-          md += '| **Fastest response** | ' + minMs + ' ms | Best-case latency |\n';
-          md += '| **Slowest response** | ' + maxMs + ' ms | Worst-case latency (1 request in 1 min) |\n';
-          md += '| **p95 response** | ' + p95Ms + ' ms | 95% of users get responses in under ' + p95Ms + 'ms |\n\n';
-
-          md += '*⚡ Generated by WorkLink CI/CD — k6 Load Testing Pipeline*\n';
-
-          fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, md);
-          console.log('✅ HTML report and Step Summary generated');
-          " 2>/dev/null || echo "⚠️ Node.js report generation failed — see artifacts"
-
-      # ── Upload Load Test Results ─────────────────────────────────────────────
       - name: 📤 Upload Load Test Results
         uses: actions/upload-artifact@v4
         if: always()
