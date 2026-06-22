@@ -331,8 +331,11 @@ jobs:
               "| Category | Test Cases | Status |",
               "|---|---|---|",
           ]
-          for cat_name, scenarios in load_test_scenarios.items():
-              md_lines.append(f"| {cat_name} | {len(scenarios)} | ✅ ALL PASSED |")
+          suite_counts = {}
+          for t in load_tests:
+              suite_counts[t["suite"]] = suite_counts.get(t["suite"], 0) + 1
+          for cat_name, cnt in suite_counts.items():
+              md_lines.append(f"| {cat_name} | {cnt} | ✅ ALL PASSED |")
           md_lines += [
               "",
               f"## 📝 All {total_tc} Load Test Cases",
