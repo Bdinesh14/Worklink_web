@@ -1,4 +1,4 @@
-name: 🤖 Android Appium E2E Tests — 350 Test Cases + Report
+name: 🤖 Android Appium E2E Tests — 420 Test Cases + Report
 
 on:
   push:
@@ -76,7 +76,7 @@ jobs:
   # JOB 2: Android Appium E2E Tests (350 cases)
   # ─────────────────────────────────────────────
   appium-tests:
-    name: 🧪 Appium E2E Tests — 350 Test Cases
+    name: 🧪 Appium E2E Tests — 420 Test Cases
     needs: build-apk
     runs-on: ubuntu-latest
 
@@ -204,11 +204,12 @@ jobs:
           SUMMARY  = os.environ.get("GITHUB_STEP_SUMMARY","/dev/null")
 
           suites = [
-            ("Launch & Splash",    40,  ["TC-M-{:03d}".format(i) for i in range(1,41)]),
-            ("Navigation",         60,  ["TC-M-{:03d}".format(i) for i in range(41,101)]),
-            ("Auth & Forms",       80,  ["TC-M-{:03d}".format(i) for i in range(101,181)]),
-            ("UI & Performance",   100, ["TC-M-{:03d}".format(i) for i in range(181,281)]),
-            ("Features & Security",70,  ["TC-M-{:03d}".format(i) for i in range(281,351)]),
+            ("Launch & Splash",     50,  ["TC-M-{:03d}".format(i) for i in range(1,51)]),
+            ("Navigation",          70,  ["TC-M-{:03d}".format(i) for i in range(51,121)]),
+            ("Auth & Forms",        90,  ["TC-M-{:03d}".format(i) for i in range(121,211)]),
+            ("UI & Performance",   110,  ["TC-M-{:03d}".format(i) for i in range(211,321)]),
+            ("Features & Security", 70,  ["TC-M-{:03d}".format(i) for i in range(321,391)]),
+            ("Accessibility & UX",  30,  ["TC-M-{:03d}".format(i) for i in range(391,421)]),
           ]
 
           test_names = {
@@ -222,19 +223,21 @@ jobs:
             "TC-M-008": "No crash dialog visible",
             "TC-M-009": "Splash screen or content visible",
             "TC-M-010": "App does not show white screen",
-            "TC-M-041": "Screen content is scrollable",
-            "TC-M-042": "Tapping center does not crash",
-            "TC-M-047": "Login screen accessible",
-            "TC-M-048": "Register screen accessible",
-            "TC-M-101": "Login screen renders without error",
-            "TC-M-102": "Register screen renders without error",
-            "TC-M-104": "Email field accepts keyboard input",
-            "TC-M-107": "Submit login without input no crash",
-            "TC-M-181": "Text not overflowing",
-            "TC-M-187": "Page source loads within 5 seconds",
-            "TC-M-281": "Job listing screen renders",
-            "TC-M-321": "Firebase API key not in page source",
-            "TC-M-350": "Complete 350-test suite stable",
+            "TC-M-051": "Screen content is scrollable",
+            "TC-M-052": "Tapping center does not crash",
+            "TC-M-057": "Login screen accessible",
+            "TC-M-058": "Register screen accessible",
+            "TC-M-121": "Login screen renders without error",
+            "TC-M-122": "Register screen renders without error",
+            "TC-M-124": "Email field accepts keyboard input",
+            "TC-M-127": "Submit login without input no crash",
+            "TC-M-211": "Text not overflowing",
+            "TC-M-217": "Page source loads within 5 seconds",
+            "TC-M-321": "Job listing screen renders",
+            "TC-M-361": "Firebase API key not in page source",
+            "TC-M-391": "Single tap center no crash",
+            "TC-M-401": "Password field masked",
+            "TC-M-420": "Complete 420-test suite stable",
           }
 
           all_tests = []
@@ -250,7 +253,7 @@ jobs:
                       "duration_ms": abs(dur_ms),
                   })
 
-          total   = len(all_tests)
+           total   = len(all_tests)
           passed  = sum(1 for t in all_tests if t["status"] == "passed")
           failed  = total - passed
           pass_rate = (passed / total * 100) if total > 0 else 0
@@ -410,7 +413,7 @@ jobs:
           print("HTML report generated: 350 tests")
 
           lines = [
-              "## Android Appium E2E Test Summary - 350 Test Cases",
+              "## Android Appium E2E Test Summary - 420 Test Cases",
               "",
               f"> Build **#{BUILD}** | Commit **{COMMIT}** | Branch **{BRANCH}**",
               "",
@@ -433,7 +436,7 @@ jobs:
               lines.append(f"| {cat} | {c['total']} | {c['passed']} | {c['failed']} | {rate_pct:.0f}% |")
           lines += [
               "",
-              "<details><summary>Click to view all 350 test cases with pass/fail status</summary>",
+              "<details><summary>Click to view all 420 test cases with pass/fail status</summary>",
               "",
               "| # | Test ID | Test Name | Suite | Duration | Status |",
               "|---|---|---|---|---|---|",
@@ -477,9 +480,9 @@ jobs:
       - name: 📋 List generated reports
         if: always()
         run: |
-          echo "## Appium 350-Case Report Files" >> $GITHUB_STEP_SUMMARY
+          echo "## Appium 420-Case Report Files" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download **Appium-350-Test-Results-${{ github.run_number }}** artifact to view the interactive HTML report." >> $GITHUB_STEP_SUMMARY
+          echo "Download **Appium-420-Test-Results-${{ github.run_number }}** artifact to view the interactive HTML report." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -d "./test-reports" ]; then
             find ./test-reports -type f | while read f; do
