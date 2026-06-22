@@ -253,7 +253,7 @@ jobs:
                       "duration_ms": abs(dur_ms),
                   })
 
-           total   = len(all_tests)
+          total   = len(all_tests)
           passed  = sum(1 for t in all_tests if t["status"] == "passed")
           failed  = total - passed
           pass_rate = (passed / total * 100) if total > 0 else 0
